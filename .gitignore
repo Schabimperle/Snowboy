@@ -1,0 +1,9 @@
+# Bulid folder
+lib/*
+
+# Modules
+node_modules/*
+
+# sensitive files
+config.json
+google-keys.json
