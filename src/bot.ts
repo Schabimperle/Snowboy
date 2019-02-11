@@ -79,11 +79,7 @@ export class Bot {
                     break;
                 }
                 case "pause": {
-<<<<<<< HEAD
                     // automatically pausing because we played the success sound
-=======
-                    this.player.pause();
->>>>>>> 8db5c7200d188571c8fe5b9aeac9d13302878de7
                     break;
                 }
                 case "resume": {
@@ -134,7 +130,7 @@ export class Bot {
         if (!this.connection) {
             return;
         }
-6;
+
         if (this.connection.client.user && member.id === this.connection.client.user.id) {
             return;
         }
