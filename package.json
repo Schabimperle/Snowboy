@@ -19,7 +19,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^10.12.24",
+    "@types/node": "^10.12.26",
     "@types/node-cleanup": "^2.1.0",
     "nodemon": "^1.18.10",
     "ts-node": "^8.0.2",
