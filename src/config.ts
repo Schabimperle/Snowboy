@@ -3,4 +3,5 @@ export interface IConfig {
     discordToken: string;
     prefix: string;
     snowboyModels: any[];
+    testChannelId: string | undefined;
 }

@@ -28,17 +28,19 @@ class Client extends Discord.Client {
         }
 
         // debug
-        const channel = this.channels.get("524975496342274093");
-        if (channel && channel.type === "voice") {
-            const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
-            voiceChannel.join()
-                .then((connection) => {
-                    const bot = new Bot(
-                        connection,
-                        this.config.snowboyModels,
-                        this.config.ytApiToken);
-                    this.bots.set(voiceChannel.guild.id, bot);
-                }).catch(console.error);
+        if (this.config.testChannelId) {
+            const channel = this.channels.get(this.config.testChannelId);
+            if (channel && channel.type === "voice") {
+                const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
+                voiceChannel.join()
+                    .then((connection) => {
+                        const bot = new Bot(
+                            connection,
+                            this.config.snowboyModels,
+                            this.config.ytApiToken);
+                        this.bots.set(voiceChannel.guild.id, bot);
+                    }).catch(console.error);
+            }
         }
     }
 
