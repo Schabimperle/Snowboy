@@ -1,7 +1,12 @@
 #!/bin/bash
 
-systemctl stop speech-music-bot
-systemctl disable speech-music-bot
-rm /etc/systemd/system/speech-music-bot.service
-systemctl daemon-reload
-systemctl reset-failed
+# exit script on error
+set -e
+
+systemctl --user stop speech-music-bot
+systemctl --user disable speech-music-bot
+rm ~/.config/systemd/user/speech-music-bot.service
+systemctl --user daemon-reload
+systemctl --user reset-failed
+
+echo "Successfully removed service"
