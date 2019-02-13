@@ -8,7 +8,7 @@
     "start": "npm run build && node lib/index.js",
     "build": "tsc",
     "clean": "rm -rf lib || true",
-    "production": "npm run clean && npm install && npm run install:service && npm start",
+    "production": "npm run clean && npm install --no-save && npm run install:service && npm start",
     "service:install": "./install-service.sh",
     "service:uninstall": "./uninstall-service.sh || true",
     "setup:ubuntu": "apt-get install -y build-essential python autoconf libtool libatlas-base-dev liblapack-dev libblas-dev ffmpeg",
