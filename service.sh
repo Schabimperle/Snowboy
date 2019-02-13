@@ -16,6 +16,7 @@ Description=Discord Speech Music Bot
 [Service]
 ExecStart=`which node` `pwd`/lib/index.js
 Restart=on-failure
+WorkingDirectory=`pwd`
 
 [Install]
 WantedBy=default.target
