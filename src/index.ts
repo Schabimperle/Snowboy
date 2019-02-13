@@ -20,6 +20,7 @@ class Client extends Discord.Client {
 
     public disconect() {
         this.bots.forEach((bot) => bot.disconnect());
+        this.destroy();
     }
 
     private onReady() {
