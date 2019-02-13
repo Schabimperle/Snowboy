@@ -6,9 +6,11 @@
   "types": "lib/index",
   "scripts": {
     "start": "npm run build && node lib/index.js",
-    "build": "tsc -p .",
-    "setup:service": "chmod u+x ./install-service.sh && ./install-service.sh",
-    "remove:service": "chmod u+x ./uninstall-service.sh && ./uninstall-service.sh",
+    "build": "tsc",
+    "clean": "rm -rf lib || true",
+    "production": "npm run clean && npm install && npm run install:service && npm start",
+    "service:install": "./install-service.sh",
+    "service:uninstall": "./uninstall-service.sh || true",
     "setup:ubuntu": "apt-get install -y build-essential python autoconf libtool libatlas-base-dev liblapack-dev libblas-dev ffmpeg",
     "setup:fedora": "dnf install -y make automake gcc gcc-c++ kernel-devel python autoconf libtool atlas-devel openblas ffmpeg sox && ln -s /usr/lib64/atlas/libsatlas.so /usr/lib/libcblas.so && ln -s /usr/lib64/atlas/libsatlas.so.3 /usr/lib/libcblas.so.3"
   },
