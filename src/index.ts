@@ -125,10 +125,13 @@ class Client extends Discord.Client {
 
 const client = new Client("../config.json", {});
 
-process.on("SIGINT", () => {
+process.on("SIGINT", cleanup);
+process.on("SIGTERM", cleanup);
+
+function cleanup() {
     // close every connection
     if (client) {
         client.disconect();
     }
     process.exit();
-});
+}
