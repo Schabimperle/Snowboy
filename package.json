@@ -9,8 +9,9 @@
     "build": "tsc",
     "clean": "rm -rf lib && npm run service:uninstall",
     "production": "npm run clean && npm install --no-save && npm run build && npm run service:install",
-    "service:install": "./install-service.sh",
-    "service:uninstall": "./uninstall-service.sh || true",
+    "service:install": "./service.sh i",
+    "service:uninstall": "./service.sh u || true",
+    "service:restart": "./service.sh r || true",
     "setup:ubuntu": "apt-get install -y build-essential python autoconf libtool libatlas-base-dev liblapack-dev libblas-dev ffmpeg",
     "setup:fedora": "dnf install -y make automake gcc gcc-c++ kernel-devel python autoconf libtool atlas-devel openblas ffmpeg sox && ln -s /usr/lib64/atlas/libsatlas.so /usr/lib/libcblas.so && ln -s /usr/lib64/atlas/libsatlas.so.3 /usr/lib/libcblas.so.3"
   },
