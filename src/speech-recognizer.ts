@@ -5,6 +5,8 @@ const Stt = require("@google-cloud/speech");
 const { Detector, Models } = require("snowboy");
 import { Writable, WritableOptions } from "stream";
 
+const GOOGLE_KEYS_PATH = "./google-keys.json";
+
 const SPEECH_REQUEST = {
     config: {
         alternativeLanguageCodes: ["en-US"],
@@ -31,7 +33,7 @@ export class SpeechRecognizer extends Writable {
     private timer?: NodeJS.Timeout;
     private sttResult: boolean = false;
 
-    constructor(detectorModels: any[], googleKeysPath: string, commands: string[], streamOptions?: WritableOptions) {
+    constructor(detectorModels: any[], commands: string[], streamOptions?: WritableOptions) {
         super(streamOptions);
         const models = new Models();
         detectorModels.forEach((model) => models.add(model));
@@ -45,7 +47,7 @@ export class SpeechRecognizer extends Writable {
             .on("error", this.handleDetectorError.bind(this));
         // .on('silence', this.handleDetectorSilence.bind(this))
         // .on('sound', this.handleDetectorSound.bind(this))
-        this.sttClient = new Stt.SpeechClient({ keyFilename: googleKeysPath });
+        this.sttClient = new Stt.SpeechClient({ keyFilename: GOOGLE_KEYS_PATH });
         this.commands = commands;
         SPEECH_REQUEST.config.speechContexts[0].phrases = this.commands;
     }

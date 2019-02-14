@@ -12,10 +12,9 @@ export class User extends SpeechRecognizer {
     constructor(member: GuildMember,
                 stream: Readable,
                 detectorModels: Models,
-                googleKeysPath: string,
                 commands: string[],
                 streamOptions?: WritableOptions) {
-        super(detectorModels, googleKeysPath, commands, streamOptions);
+        super(detectorModels, commands, streamOptions);
 
         this.member = member;
 

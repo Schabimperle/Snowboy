@@ -7,3 +7,6 @@ node_modules/*
 # sensitive files
 config.json
 google-keys.json
+
+# ignore huge ds model files
+models*

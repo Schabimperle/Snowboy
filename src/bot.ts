@@ -6,8 +6,6 @@ import Models from "snowboy";
 import { Player } from "./player";
 import { User } from "./user";
 
-const GOOGLE_KEYS_PATH = "./google-keys.json";
-
 export class Bot {
 
     public readonly connection: Discord.VoiceConnection;
@@ -111,7 +109,7 @@ export class Bot {
         }
 
         const stream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" });
-        const user: User = new User(member, stream, this.models, GOOGLE_KEYS_PATH, [
+        const user: User = new User(member, stream, this.models, [
                 "play",
                 "pause",
                 "resume",
