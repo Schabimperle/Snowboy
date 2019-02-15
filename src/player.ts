@@ -1,5 +1,4 @@
 import * as Discord from "discord.js";
-import * as fs from "fs";
 import request from "request";
 import { Readable } from "stream";
 import ytdl from "ytdl-core";
@@ -14,7 +13,18 @@ export class Player {
     private queue: any[] = [];
     private lastPlayed: any;
     private paused: any;
+    private autoplay: boolean;
     private onPlayFinish: () => void;
+
+    constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
+        this.connection = connection;
+        this.ytApiKey = ytApiKey;
+        this.onPlayFinish = () =>  {
+            console.log("dispatcher finished, playing next");
+            this.playNext();
+        };
+        this.autoplay = autoplay;
+    }
 
     public get isPaused() {
         return Boolean(this.paused);
@@ -24,48 +34,112 @@ export class Player {
         return this.connection.speaking.has(Discord.Speaking.FLAGS.SPEAKING);
     }
 
-    constructor(connection: Discord.VoiceConnection, ytApiKey: string) {
-        this.connection = connection;
-        this.ytApiKey = ytApiKey;
-        this.onPlayFinish = () =>  {
-            console.log("dispatcher finished, playing next");
-            this.playNext();
-        };
-    }
-
+    /**
+     * - adds search query
+     * - skips current song
+     * - starts when it was not playing before
+     * @param search song to search and play from youtube
+     */
     public play(search: string) {
-        this.enqueue({
+        const opts = {
             qs: {
                 key: this.ytApiKey,
                 part: "id",
-                q: encodeURIComponent(search),
+                q: search,
                 type: "video",
             },
             url: YT_API_URL,
+        };
+        this.search(opts, (err, response) => {
+            if (!err) {
+                this.queue.unshift(response);
+                this.skip();
+            }
         });
     }
 
-    public playSoundFile(path: string, cb?: () => void) {
-        console.log("playing sound file" + path);
-        this.connection.play(fs.createReadStream(path), { type: "ogg/opus" })
-            .on("finish", () => {
-                if (cb) {
-                    cb();
-                }
-            })
-            .on("error", (error) => console.log("dispatcher error:", path, error));
+    /**
+     * adds a song to the queue
+     * @param search song to search and play from youtube
+     */
+    public add(search: string) {
+        const opts = {
+            qs: {
+                key: this.ytApiKey,
+                part: "id",
+                q: search,
+                type: "video",
+            },
+            url: YT_API_URL,
+        };
+        this.search(opts, (err, response) => {
+            if (!err) {
+                this.queue.push(response);
+            }
+        });
     }
 
+    /**
+     * skippes the current song and playes the next one
+     */
     public skip() {
         if (this.paused) {
             this.paused.ffmpeg.destroy();
             this.paused = null;
-            this.playNext();
-        } else {
-            console.log("can't skip, nothing on hold");
+        }
+        this.playNext();
+    }
+
+    /**
+     * pauses the currently played song (by unpiping the opus stream)
+     */
+    public pause() {
+        if (!this.isPlaying) {
+            console.log("skipping pause call, we're not Playing");
+            return;
+        }
+        if (this.paused) {
+            console.log("skipping pause call, we're already paused");
+            return;
+        }
+        this.paused = {
+            // @ts-ignore
+            ffmpeg: this.connection.dispatcher.streams.ffmpeg,
+            // @ts-ignore
+            opus: this.connection.dispatcher.streams.opus,
+        };
+        // @ts-ignore
+        this.connection.dispatcher.streams.ffmpeg = null;
+        this.connection.dispatcher.removeListener("finish", this.onPlayFinish);
+        this.connection.dispatcher.destroy();
+    }
+
+    /**
+     * resumes if there is a paused song
+     */
+    public resume() {
+        if (this.isPlaying) {
+            console.log("skipping resume, we're currently Playing");
+            return;
+        }
+
+        if (this.paused) {
+            this.connection.play(this.paused.opus, { type: "opus" })
+                .on("finish", this.onPlayFinish)
+                .on("close", () => console.log("dispatcher closed previously paused"))
+                .on("end", () => console.log("dispatcher ended previously paused"))
+                .on("start", () => console.log("dispatcher started previously paused"))
+                .on("debug", (debug) => console.log("dispatcher debug previously paused:", debug))
+                .on("error", (error) => console.log("dispatcher error previously paused:", error));
+            // @ts-ignore
+            this.connection.dispatcher.streams.ffmpeg = this.paused.ffmpeg;
+            this.paused = null;
         }
     }
 
+    /**
+     * stoppes anything played, resets the player
+     */
     public stop() {
         this.queue = [];
         this.lastPlayed = false;
@@ -82,79 +156,17 @@ export class Player {
         // TODO finish source stream here? (through stream.push(null))
     }
 
-    public pause() {
-        if (!this.isPlaying) {
-            console.log("can't pause, we're not Playing");
-            return;
-        }
-        if (this.paused) {
-            console.log("can't pause, we're already paused");
-            return;
-        }
-        this.paused = {
-            // @ts-ignore
-            ffmpeg: this.connection.dispatcher.streams.ffmpeg,
-            // @ts-ignore
-            opus: this.connection.dispatcher.streams.opus,
-        };
-        // @ts-ignore
-        this.connection.dispatcher.streams.ffmpeg = null;
-        this.connection.dispatcher.removeListener("finish", this.onPlayFinish);
-        this.connection.dispatcher.destroy();
-
-    }
-
-    public resume() {
-        if (!this.paused) {
-            console.log("can't resume, we're not paused");
-            return;
-        }
-        if (this.isPlaying) {
-            console.log("can't resume, we're currently Playing");
-            return;
-        }
-        this.connection.play(this.paused.opus, { type: "opus" })
-            .on("finish", this.onPlayFinish)
-            .on("close", () => console.log("dispatcher closed previously paused"))
-            .on("end", () => console.log("dispatcher ended previously paused"))
-            .on("start", () => console.log("dispatcher started previously paused"))
-            .on("debug", (debug) => console.log("dispatcher debug previously paused:", debug))
-            .on("error", (error) => console.log("dispatcher error previously paused:", error));
-            // @ts-ignore
-        this.connection.dispatcher.streams.ffmpeg = this.paused.ffmpeg;
-        this.paused = null;
-    }
-
-    private enqueue(reqOptions: request.Options) {
-        request(reqOptions,
-            (error, response, body) => {
-                if (error || response.statusCode !== 200) {
-                    console.error(error || "bad status code:" + response.statusCode);
-                    console.error(reqOptions);
-                    console.error(body);
-                    return;
-                }
-                const responseJSON = JSON.parse(body);
-                this.queue.push(responseJSON);
-
-                if (!this.isPlaying && !this.isPaused) {
-                    this.playNext();
-                }
-            },
-        );
-    }
-
+    /**
+     * playes the next song from queue or does autoplay if enabled
+     */
     private playNext() {
-        // play paused stream if there is one
-        if (this.paused) {
-            this.resume();
-            return;
-        }
-
         // get next item from queue
         const response = this.queue.shift();
+
         if (!response) {
-            this.autoplay();
+            if (this.autoplay) {
+                this.doAutoplay();
+            }
             return;
         }
 
@@ -183,12 +195,13 @@ export class Player {
         this.lastPlayed = video;
     }
 
-    private autoplay() {
+    private doAutoplay() {
         if (!this.lastPlayed) {
+            console.debug("skipping autoplay call, no last played song");
             return;
         }
         console.log("autoplaying...");
-        this.enqueue({
+        const opts = {
             qs: {
                 key: this.ytApiKey,
                 part: "id",
@@ -196,6 +209,33 @@ export class Player {
                 type: "video",
             },
             url: YT_API_URL,
+        };
+        this.search(opts, (err, response) => {
+            if (!err) {
+                this.queue.push(response);
+                this.playNext();
+            }
         });
+    }
+
+    private search(reqOptions: request.Options, cb?: (err: any, res?: string) => any) {
+        request(reqOptions,
+            (error, response, body) => {
+                if (error || response.statusCode !== 200) {
+                    const err = error || "bad status code:" + response.statusCode;
+                    console.error(err);
+                    console.error(reqOptions);
+                    console.error(body);
+                    if (cb) {
+                        cb(err);
+                    }
+                    return;
+                }
+                const responseJSON = JSON.parse(body);
+                if (cb) {
+                    cb(false, responseJSON);
+                }
+            },
+        );
     }
 }

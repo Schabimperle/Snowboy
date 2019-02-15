@@ -1,4 +1,5 @@
 import * as Discord from "discord.js";
+import * as fs from "fs";
 // @ts-ignore
 import * as prism from "prism-media";
 // @ts-ignore
@@ -17,7 +18,7 @@ export class Bot {
         this.connection = connection;
         this.models = models;
         this.ytApiKey = ytApiKey;
-        this.player = new Player(connection, ytApiKey);
+        this.player = new Player(connection, ytApiKey, true);
 
         // listen to current members of the channel
         for (const member of this.connection.channel.members.values()) {
@@ -56,12 +57,12 @@ export class Bot {
         if (this.player.isPlaying) {
             this.player.pause();
         }
-        this.player.playSoundFile("sounds/wake.ogg");
+        this.playSoundEffect("sounds/wake.ogg");
     }
 
     public onBadCommand(user: User, command: string, text: string) {
         console.debug("onBadCommand", command + ":", text);
-        this.player.playSoundFile("sounds/failure-02.ogg", () => {
+        this.playSoundEffect("sounds/failure-02.ogg", () => {
             if (this.player.isPaused) {
                 this.player.resume();
             }
@@ -70,14 +71,18 @@ export class Bot {
 
     public onCommand(user: User, command: string, text: string) {
         console.debug("onCommand", command + ":", text);
-        this.player.playSoundFile("sounds/success-01.ogg", () => {
+        this.playSoundEffect("sounds/success-01.ogg", () => {
             switch (command) {
                 case "play": {
                     this.player.play(text);
                     break;
                 }
+                case "add": {
+                    this.player.add(text);
+                    this.player.resume();
+                }
                 case "pause": {
-                    // automatically pausing because we played the success sound
+                    // automatically pausing because we paused in onHotword
                     break;
                 }
                 case "resume": {
@@ -85,6 +90,7 @@ export class Bot {
                 }
                 case "skip": {
                     this.player.skip();
+                    this.player.resume();
                     break;
                 }
                 case "stop": {
@@ -92,14 +98,26 @@ export class Bot {
                     break;
                 }
                 case "leave": {
-                    this.connection.disconnect();
+                    this.disconnect();
                     break;
                 }
                 default: {
                     console.debug("command '" + command + "' not implemented yet");
+                    this.player.resume();
                 }
             }
         });
+    }
+
+    public playSoundEffect(path: string, cb?: () => void) {
+        console.log("playing sound file" + path);
+        this.connection.play(fs.createReadStream(path), { type: "ogg/opus" })
+            .on("finish", () => {
+                if (cb) {
+                    cb();
+                }
+            })
+            .on("error", (error) => console.log("dispatcher error:", path, error));
     }
 
     private listenTo(member: Discord.GuildMember) {
@@ -111,6 +129,7 @@ export class Bot {
         const stream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" });
         const user: User = new User(member, stream, this.models, [
                 "play",
+                "add",
                 "pause",
                 "resume",
                 "stop",
