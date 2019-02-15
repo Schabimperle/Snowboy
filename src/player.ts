@@ -19,7 +19,7 @@ export class Player {
     constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
         this.connection = connection;
         this.ytApiKey = ytApiKey;
-        this.onPlayFinish = () =>  {
+        this.onPlayFinish = () => {
             console.log("dispatcher finished, playing next");
             this.playNext();
         };
@@ -170,11 +170,17 @@ export class Player {
             return;
         }
 
+        if (!response.items.length) {
+            // TODO communicate bad result to user...
+            return;
+        }
+
         // play next item
         const video = response.items.find((item: any) => item.id.videoId);
+
         const url = YT_VIDEO_URL + video.id.videoId;
         console.debug("playing", url);
-        const stream = ytdl(url, { quality: "highestaudio"/*, highWaterMark: 1*/})
+        const stream = ytdl(url, { quality: "highestaudio"/*, highWaterMark: 1*/ })
             .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
                 if (this.connection.client.user) {
                     this.connection.client.user.setActivity(info.title, { type: "LISTENING" });

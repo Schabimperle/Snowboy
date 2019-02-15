@@ -1,9 +1,10 @@
-
+import * as fs from "fs";
 // tslint:disable-next-line
 const Stt = require("@google-cloud/speech");
 // tslint:disable-next-line
 const { Detector, Models } = require("snowboy");
 import { Writable, WritableOptions } from "stream";
+import { Command } from "./command";
 
 const GOOGLE_KEYS_PATH = "./google-keys.json";
 
@@ -12,28 +13,33 @@ const SPEECH_REQUEST = {
         alternativeLanguageCodes: ["en-US"],
         encoding: "LINEAR16",
         languageCode: "de-DE",
-        maxAlternatives: 5,
+        // maxAlternatives: 5,
         sampleRateHertz: 16000,
         speechContexts: [{
             phrases: [] as string[],
         }],
     },
-    interimResults: false, // If you want interim results, set this to true
+    interimResults: true, // If you want interim results, set this to true
+    singleUtterance: false, // recognize speech pause or end and end stream
 };
-const RECORD_TIMEOUT = 1500;
 
-export { WritableOptions } from "stream";
+const TIMEOUT_SILENCE = 250;
+const TIMEOUT_BEFORE_MIN = 5000;
+const TIMEOUT_AFTER_MIN = 1000;
+
+const SILENCE_BUFFER_250MS = fs.readFileSync("sounds/silence.pcm");
 
 export class SpeechRecognizer extends Writable {
 
     private detector: any;
     private sttClient: any;
-    private commands: string[];
+    private commands: Command[];
     private sttStream: Writable | null = null;
-    private timer?: NodeJS.Timeout;
-    private sttResult: boolean = false;
+    private timer: any = { count: 0 };
+    private sttResult: string = "";
+    private match: Command | null = null;
 
-    constructor(detectorModels: any[], commands: string[], streamOptions?: WritableOptions) {
+    constructor(detectorModels: any[], commands: Command[], streamOptions?: WritableOptions) {
         super(streamOptions);
         const models = new Models();
         detectorModels.forEach((model) => models.add(model));
@@ -44,17 +50,17 @@ export class SpeechRecognizer extends Writable {
             resource: "node_modules/snowboy/resources/common.res",
         })
             .on("hotword", this.handleDetectorHotword.bind(this))
-            .on("error", this.handleDetectorError.bind(this));
-        // .on('silence', this.handleDetectorSilence.bind(this))
+            .on("error", this.handleDetectorError.bind(this))
+            .on("silence", this.handleDetectorSilence.bind(this));
         // .on('sound', this.handleDetectorSound.bind(this))
         this.sttClient = new Stt.SpeechClient({ keyFilename: GOOGLE_KEYS_PATH });
         this.commands = commands;
-        SPEECH_REQUEST.config.speechContexts[0].phrases = this.commands;
+        SPEECH_REQUEST.config.speechContexts[0].phrases = this.commands.map((cmd) => cmd.command);
     }
 
-    // handleDetectorSilence() {
-    // 	console.debug('silence');
-    // }
+    public handleDetectorSilence() {
+        // console.debug("silence");
+    }
 
     // handleDetectorSound(buffer) {
     // 	// <buffer> contains the last chunk of the audio that triggers the "sound"
@@ -66,27 +72,48 @@ export class SpeechRecognizer extends Writable {
         return this.sttStream;
     }
 
-    public endTranscribing() {
-        if (this.sttStream && this.sttStream.writable) {
-            this.sttStream.end();
-        }
-        this.sttStream = null;
-    }
-
     public _write(chunk: any, encoding: string, callback: (error?: Error | null) => void) {
         if (this.sttStream) {
+            if (!this.timer.silenceCalled) {
+                this.timer.count = 0;
+            }
+
             this.sttStream.write(chunk, encoding, callback);
-            if (this.timer) { clearTimeout(this.timer); }
-            this.timer = setTimeout(this.endTranscribing.bind(this), RECORD_TIMEOUT);
+
+            // set timer
+            clearTimeout(this.timer.handle);
+            this.timer.handle = setTimeout(() => this.silenceTimeout(), TIMEOUT_SILENCE);
         } else {
             this.detector.write(chunk, encoding, callback);
         }
+
+        this.timer.silenceCalled = false;
     }
 
     public _final(callback: (error?: Error | null) => void) {
         this.detector.end();
         if (this.sttStream) { this.sttStream.end(); }
         callback();
+    }
+
+    private silenceTimeout() {
+        if (!this.writable) {
+            return;
+        }
+        this.timer.count++;
+
+        // check if we should end transcribing
+        if (!this.match) {
+            if (this.timer.count * TIMEOUT_SILENCE >= TIMEOUT_BEFORE_MIN) {
+                this.endTranscribing(false);
+            }
+        } else if (this.timer.count * TIMEOUT_SILENCE >= TIMEOUT_AFTER_MIN) {
+            this.endTranscribing(false);
+        }
+
+        // write silence buffer to get better interim results from google stt
+        this.timer.silenceCalled = true;
+        this.write(SILENCE_BUFFER_250MS);
     }
 
     private handleDetectorHotword(index: number, hotword: string, buffer: Buffer) {
@@ -97,54 +124,89 @@ export class SpeechRecognizer extends Writable {
         console.debug("hotword", index, hotword);
         this.emit("hotword");
 
+        // start speech to text stream
         this.sttStream = this.sttClient.streamingRecognize(SPEECH_REQUEST)
             // .on('start', this.handleSttStart.bind(this))
             .on("data", this.handleSttData.bind(this))
             .on("error", this.handleSttError.bind(this))
             .on("end", this.handleSttEnd.bind(this));
-        this.timer = setTimeout(this.endTranscribing.bind(this), RECORD_TIMEOUT);
+
+        // time out if no data reveives
+        this.timer.handle = setTimeout(this.endTranscribing.bind(this), TIMEOUT_BEFORE_MIN);
         this.emit("transcribe-start");
     }
 
     private handleSttData(data: any) {
-        this.sttResult = true;
         if (data.error) {
-            this.handleSttError(data.error);
+            console.error(data.error);
             return;
         }
-        if (!data.results.length || !data.results[0].alternatives) {
-            return;
-        }
-        const alternatives = data.results[0].alternatives;
-        // if any transcript starts with a command emit an appropriate event
-        for (let i = 0; i < alternatives.length; i++) {
-            console.debug(`transcript (${i}/${alternatives.length}):`, alternatives[i].transcript);
-            for (const command of this.commands) {
-                if (alternatives[i].transcript.toLowerCase().startsWith(command)) {
-                    this.emit("command", command, alternatives[i].transcript.slice(command.length + 1));
+
+        for (const result of data.results) {
+            if (result.isFinal) {
+                this.sttResult += result.alternatives[0].transcript.toLowerCase();
+                console.log("new final result:", this.sttResult);
+                this.checkTranscript(this.sttResult);
+                if (!this.match) {
+                    this.endTranscribing(true);
                     return;
+                }
+            } else if (result.stability >= 0.5) {
+                const interimResult = this.sttResult + result.alternatives[0].transcript.toLowerCase();
+                console.log("interim result:", interimResult);
+                this.checkTranscript(interimResult);
+            } else {
+                console.debug(`threw away(${result.stability.toFixed(3)}):`, result.alternatives[0].transcript);
+            }
+        }
+    }
+
+    private checkTranscript(transcript: string) {
+        const wordCount = transcript.split(" ").length;
+
+        for (const cmd of this.commands) {
+            if (wordCount >= cmd.minWords && transcript.startsWith(cmd.command)) {
+                this.match = cmd;
+                if (wordCount >= cmd.maxWords) {
+                    this.sttResult = transcript;
+                    this.endTranscribing(true);
                 }
             }
         }
-        const text: string = alternatives[0].transcript;
-        const command = text.substr(0, text.indexOf(" ") || text.length);
-        const rest = text.slice(command.length + 1);
-        this.emit("bad-command", command, rest);
+        return null;
+    }
+
+    private endTranscribing(destroy: boolean) {
+        if (this.sttStream && this.sttStream.writable) {
+            if (destroy) {
+                this.sttStream.destroy();
+                this.handleSttEnd();
+            } else {
+                this.sttStream.end();
+            }
+        }
+        this.sttStream = null;
     }
 
     private handleSttEnd() {
-        if (!this.sttResult) {
+        if (!this.match) {
             this.emit("bad-command", "none", "");
         }
+        if (this.match) {
+            this.emit("command", this.match.command, this.sttResult.slice(this.match.command.length + 1));
+        }
 
-        this.sttResult = false;
+        this.sttResult = "";
         this.sttStream = null;
+        this.match = null;
         this.emit("transcribe-end");
     }
 
     private handleSttError(error: any) {
         console.error(error);
+        this.sttResult = "";
         this.sttStream = null;
+        this.match = null;
         this.emit("transcribe-error", error);
     }
 

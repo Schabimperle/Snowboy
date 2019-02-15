@@ -1,11 +1,23 @@
 import * as Discord from "discord.js";
+import ffmpeg from "fluent-ffmpeg";
 import * as fs from "fs";
 // @ts-ignore
 import * as prism from "prism-media";
 // @ts-ignore
 import Models from "snowboy";
+import { Command } from "./command";
 import { Player } from "./player";
-import { User } from "./user";
+import { SpeechRecognizer } from "./speech-recognizer";
+
+const COMMANDS: Command[] = [
+    { command: "play", minWords: 1, maxWords: 20 },
+    { command: "add", minWords: 1, maxWords: 20 },
+    { command: "pause", minWords: 1, maxWords: 1 },
+    { command: "resume", minWords: 1, maxWords: 1 },
+    { command: "skip", minWords: 1, maxWords: 1 },
+    { command: "stop", minWords: 1, maxWords: 1 },
+    { command: "leave", minWords: 1, maxWords: 1 },
+];
 
 export class Bot {
 
@@ -31,11 +43,11 @@ export class Bot {
         if (newState.channelID === oldState.channelID) {
             console.debug(newState.member.user.username, "muted/deafened himself");
 
-        // member joined channel
+            // member joined channel
         } else if (newState.channelID === this.connection.channel.id) {
             console.debug(newState.member.user.username, "connected");
             this.listenTo(newState.member);
-        // member left channel
+            // member left channel
         } else if (oldState.channelID === this.connection.channel.id) {
             console.debug(oldState.member.user.username, "disconnected");
             this.stopListeningTo(oldState.member);
@@ -52,15 +64,15 @@ export class Bot {
         this.connection.disconnect();
     }
 
-    public onHotword(user: User) {
-        console.debug("onHotword", user.member.user.username);
+    public onHotword(member: Discord.GuildMember) {
+        console.debug("onHotword", member.user.username);
         if (this.player.isPlaying) {
             this.player.pause();
         }
         this.playSoundEffect("sounds/wake.ogg");
     }
 
-    public onBadCommand(user: User, command: string, text: string) {
+    public onBadCommand(member: Discord.GuildMember, command: string, text: string) {
         console.debug("onBadCommand", command + ":", text);
         this.playSoundEffect("sounds/failure-02.ogg", () => {
             if (this.player.isPaused) {
@@ -69,42 +81,36 @@ export class Bot {
         });
     }
 
-    public onCommand(user: User, command: string, text: string) {
+    public onCommand(member: Discord.GuildMember, command: string, text: string) {
         console.debug("onCommand", command + ":", text);
         this.playSoundEffect("sounds/success-01.ogg", () => {
             switch (command) {
-                case "play": {
+                case "play":
                     this.player.play(text);
                     break;
-                }
-                case "add": {
+                case "add":
                     this.player.add(text);
                     this.player.resume();
-                }
-                case "pause": {
+                    break;
+                case "pause":
                     // automatically pausing because we paused in onHotword
                     break;
-                }
-                case "resume": {
+                case "resume":
                     this.player.resume();
-                }
-                case "skip": {
+                    break;
+                case "skip":
                     this.player.skip();
                     this.player.resume();
                     break;
-                }
-                case "stop": {
+                case "stop":
                     this.player.stop();
                     break;
-                }
-                case "leave": {
+                case "leave":
                     this.disconnect();
                     break;
-                }
-                default: {
+                default:
                     console.debug("command '" + command + "' not implemented yet");
                     this.player.resume();
-                }
             }
         });
     }
@@ -126,19 +132,23 @@ export class Bot {
             return;
         }
 
-        const stream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" });
-        const user: User = new User(member, stream, this.models, [
-                "play",
-                "add",
-                "pause",
-                "resume",
-                "stop",
-                "skip",
-                "leave",
-            ])
-            .on("hotword", () => this.onHotword(user))
-            .on("command", (command: string, text: string) => this.onCommand(user, command, text))
-            .on("bad-command", (command: string, text: string) => this.onBadCommand(user, command, text));
+        const stream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" })
+            // .on("data", () => console.debug("sound"))
+            .on("error", () => console.error)
+            .on("end", () => console.debug("user stream ended"));
+
+        const recognizer = new SpeechRecognizer(this.models, COMMANDS)
+            .on("hotword", () => this.onHotword(member))
+            .on("command", (command: string, text: string) => this.onCommand(member, command, text))
+            .on("bad-command", (command: string, text: string) => this.onBadCommand(member, command, text));
+
+        ffmpeg(stream)
+            .inputFormat("s32le")
+            .audioFrequency(16000)
+            .audioCodec("pcm_s16le")
+            .format("s16le")
+            .on("error", console.error)
+            .pipe(recognizer);
 
         console.debug("listening to", member.user.username);
     }
