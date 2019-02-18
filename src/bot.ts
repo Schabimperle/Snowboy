@@ -5,12 +5,16 @@ import * as fs from "fs";
 import * as prism from "prism-media";
 // @ts-ignore
 import Models from "snowboy";
+
+import * as Config from "../config.json";
 import { Command } from "./command";
 import { Player } from "./player";
+import { Song } from "./song";
 import { SpeechRecognizer } from "./speech-recognizer";
 
 const COMMANDS: Command[] = [
     { command: "play", minWords: 1, maxWords: 20 },
+    { command: "next result", minWords: 1, maxWords: 2 },
     { command: "add", minWords: 1, maxWords: 20 },
     { command: "pause", minWords: 1, maxWords: 1 },
     { command: "resume", minWords: 1, maxWords: 1 },
@@ -25,12 +29,24 @@ export class Bot {
     private models: Models;
     private ytApiKey: string;
     private player: Player;
+    private manuallyPaused: boolean = false;
 
     constructor(connection: Discord.VoiceConnection, models: Models, ytApiKey: string) {
         this.connection = connection;
         this.models = models;
         this.ytApiKey = ytApiKey;
-        this.player = new Player(connection, ytApiKey, true);
+        this.player = new Player(connection, ytApiKey, true)
+            .on("song", (song: Song) => {
+                // TODO communicate to user
+            })
+            .on("end", () => {
+                // TODO communicate to user
+            })
+            .on("error", (error, song) => console.error(error, song));
+
+        if (this.connection.client.user) {
+            this.connection.client.user.setActivity(Config.prefix + "help", { type: "LISTENING" });
+        }
 
         // listen to current members of the channel
         for (const member of this.connection.channel.members.values()) {
@@ -75,7 +91,7 @@ export class Bot {
     public onBadCommand(member: Discord.GuildMember, command: string, text: string) {
         console.debug("onBadCommand", command + ":", text);
         this.playSoundEffect("sounds/failure-02.ogg", () => {
-            if (this.player.isPaused) {
+            if (this.player.isPaused && !this.manuallyPaused) {
                 this.player.resume();
             }
         });
@@ -86,21 +102,28 @@ export class Bot {
         this.playSoundEffect("sounds/success-01.ogg", () => {
             switch (command) {
                 case "play":
+                    this.player.clearPaused();
                     this.player.play(text);
+                    break;
+                case "next result":
+                    this.player.clearPaused();
+                    this.player.playNextResult();
                     break;
                 case "add":
                     this.player.add(text);
                     this.player.resume();
                     break;
                 case "pause":
-                    // automatically pausing because we paused in onHotword
+                    this.manuallyPaused = true;
+                    // we already paused in onHotword()...
                     break;
                 case "resume":
+                    this.manuallyPaused = false;
                     this.player.resume();
                     break;
                 case "skip":
-                    this.player.skip();
-                    this.player.resume();
+                    this.player.clearPaused();
+                    this.player.playNext();
                     break;
                 case "stop":
                     this.player.stop();

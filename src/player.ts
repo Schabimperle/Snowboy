@@ -1,22 +1,29 @@
+import { emit } from "cluster";
 import * as Discord from "discord.js";
+import { EventEmitter } from "events";
 import request from "request";
 import { Readable } from "stream";
 import ytdl from "ytdl-core";
+import { Song } from "./song";
 
 const YT_API_URL = "https://www.googleapis.com/youtube/v3/search";
 const YT_VIDEO_URL = "https://www.youtube.com/watch?v=";
 
-export class Player {
+export class Player extends EventEmitter {
 
     private connection: Discord.VoiceConnection;
     private ytApiKey: string;
-    private queue: any[] = [];
-    private lastPlayed: any;
-    private paused: any;
+    private queue: Song[] = [];
+    private lastPlayed?: Song;
+    private paused: {
+        opus: Readable;
+        ffmpeg: Readable;
+    } | null = null;
     private autoplay: boolean;
     private onPlayFinish: () => void;
 
     constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
+        super();
         this.connection = connection;
         this.ytApiKey = ytApiKey;
         this.onPlayFinish = () => {
@@ -44,17 +51,13 @@ export class Player {
         const opts = {
             qs: {
                 key: this.ytApiKey,
-                part: "id",
+                part: "id,snippet",
                 q: search,
                 type: "video",
             },
-            url: YT_API_URL,
         };
-        this.search(opts, (err, response) => {
-            if (!err) {
-                this.queue.unshift(response);
-                this.skip();
-            }
+        this.search(opts, (song) => {
+            this.playSong(song);
         });
     }
 
@@ -66,28 +69,14 @@ export class Player {
         const opts = {
             qs: {
                 key: this.ytApiKey,
-                part: "id",
+                part: "id,snippet",
                 q: search,
                 type: "video",
             },
-            url: YT_API_URL,
         };
-        this.search(opts, (err, response) => {
-            if (!err) {
-                this.queue.push(response);
-            }
+        this.search(opts, (song) => {
+            this.queue.push(song);
         });
-    }
-
-    /**
-     * skippes the current song and playes the next one
-     */
-    public skip() {
-        if (this.paused) {
-            this.paused.ffmpeg.destroy();
-            this.paused = null;
-        }
-        this.playNext();
     }
 
     /**
@@ -110,8 +99,18 @@ export class Player {
         };
         // @ts-ignore
         this.connection.dispatcher.streams.ffmpeg = null;
+        // @ts-ignore
+        this.connection.dispatcher.streams.opus = null;
         this.connection.dispatcher.removeListener("finish", this.onPlayFinish);
         this.connection.dispatcher.destroy();
+    }
+
+    public clearPaused() {
+        if (this.paused) {
+            this.paused.ffmpeg.destroy();
+            this.paused.opus.destroy();
+            this.paused = null;
+        }
     }
 
     /**
@@ -138,67 +137,64 @@ export class Player {
     }
 
     /**
-     * stoppes anything played, resets the player
+     * stops anything played, resets the player
+     * @event Player#end
      */
     public stop() {
         this.queue = [];
-        this.lastPlayed = false;
-        if (this.isPaused) {
-            this.paused.ffmpeg.destroy();
-            this.paused = null;
-        }
+        this.clearPaused();
         if (this.connection.dispatcher) {
             this.connection.dispatcher.destroy();
         }
-        if (this.connection.client.user) {
-            this.connection.client.user.setActivity();
-        }
+        this.emit("end");
         // TODO finish source stream here? (through stream.push(null))
     }
 
-    /**
-     * playes the next song from queue or does autoplay if enabled
-     */
-    private playNext() {
-        // get next item from queue
-        const response = this.queue.shift();
+    public playNextResult() {
+        if (!this.lastPlayed) {
+            return;
+        }
 
-        if (!response) {
+        this.findNextValidSong(this.lastPlayed, (song) => {
+            this.playSong(song);
+        });
+    }
+
+    /**
+     * plays the next song from queue or does autoplay if enabled
+     * @event Player#end
+     */
+    public playNext() {
+        // get first item from queue
+        const song = this.queue.shift();
+
+        if (!song) {
             if (this.autoplay) {
                 this.doAutoplay();
+            } else {
+                this.emit("end");
             }
             return;
         }
 
-        if (!response.items.length) {
-            // TODO communicate bad result to user...
+        this.playSong(song);
+    }
+
+    private playSong(song: Song) {
+        if (!song.stream) {
             return;
         }
 
-        // play next item
-        const video = response.items.find((item: any) => item.id.videoId);
-
-        const url = YT_VIDEO_URL + video.id.videoId;
-        console.debug("playing", url);
-        const stream = ytdl(url, { quality: "highestaudio"/*, highWaterMark: 1*/ })
-            .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
-                if (this.connection.client.user) {
-                    this.connection.client.user.setActivity(info.title, { type: "LISTENING" });
-                }
-            })
-            .on("end", () => console.log("ytdl stream end"))
-            .on("close", () => console.log("ytdl stream close"))
-            .on("error", (error) => console.error("ytdl stream error:", error));
-
-        this.connection.play(stream)
+        this.connection.play(song.stream)
             .on("finish", this.onPlayFinish)
-            .on("close", () => console.log("dispatcher closed", url))
-            .on("end", () => console.log("dispatcher ended", url))
-            .on("start", () => console.log("dispatcher started", url))
-            .on("debug", (debug) => console.log("dispatcher debug:", url, debug))
-            .on("error", (error) => console.log("dispatcher error:", url, error));
+            .on("close", () => console.log("dispatcher closed", song.videoId))
+            .on("end", () => console.log("dispatcher ended", song.videoId))
+            .on("start", () => console.log("dispatcher started", song.videoId))
+            .on("debug", (debug) => console.log("dispatcher debug:", song.videoId, debug))
+            .on("error", (error) => console.log("dispatcher error:", song.videoId, error));
 
-        this.lastPlayed = video;
+        this.lastPlayed = song;
+        this.emit("song", song);
     }
 
     private doAutoplay() {
@@ -210,38 +206,68 @@ export class Player {
         const opts = {
             qs: {
                 key: this.ytApiKey,
-                part: "id",
-                relatedToVideoId: this.lastPlayed.id.videoId,
+                part: "id,snippet",
+                relatedToVideoId: this.lastPlayed.videoId,
                 type: "video",
             },
-            url: YT_API_URL,
         };
-        this.search(opts, (err, response) => {
-            if (!err) {
-                this.queue.push(response);
-                this.playNext();
-            }
+        this.search(opts, (song) => {
+            this.playSong(song);
         });
     }
 
-    private search(reqOptions: request.Options, cb?: (err: any, res?: string) => any) {
-        request(reqOptions,
+    private search(requestOpts: request.CoreOptions, cb: (song: Song) => void) {
+        const reqSong = new Song(requestOpts);
+
+        request(YT_API_URL, requestOpts,
             (error, response, body) => {
+                // error check
                 if (error || response.statusCode !== 200) {
-                    const err = error || "bad status code:" + response.statusCode;
+                    const err = error || "Bad status code:" + response.statusCode;
                     console.error(err);
-                    console.error(reqOptions);
-                    console.error(body);
-                    if (cb) {
-                        cb(err);
-                    }
-                    return;
+                    throw err;
                 }
-                const responseJSON = JSON.parse(body);
-                if (cb) {
-                    cb(false, responseJSON);
-                }
+
+                reqSong.response = JSON.parse(body);
+                this.findNextValidSong(reqSong, (song) => {
+                    cb(song);
+                });
             },
         );
+    }
+
+    private findNextValidSong(song: Song, cb: (song: Song) => void) {
+        if (!song.response.items.length) {
+            this.emit("error", { message: "No search results", song });
+            return;
+        }
+
+        const startIndex = song.itemIndex;
+        for (let i = song.itemIndex + 1; i < song.response.items.length; i++) {
+            if (song.response.items[i].id.videoId) {
+                song.itemIndex = i;
+                break;
+            }
+        }
+
+        // did we find a valid index?
+        if (song.itemIndex !== startIndex) {
+            const url = YT_VIDEO_URL + song.videoId;
+            console.debug("queueing", url);
+            song.stream = ytdl(url, { quality: "highestaudio"/*, highWaterMark: 1*/ })
+                .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
+                    song.info = info;
+                })
+                .on("end", () => console.log("ytdl stream end"))
+                .on("error", (err) => console.error("ytdl stream error:", err));
+            cb(song);
+            // check next page if we dint't
+        } else if (song.response.nextPageToken) {
+            song.requestOpts.qs.pageToken = song.response.nextPageToken;
+            this.search(song.requestOpts, cb);
+            // we can't find a valid index6
+        } else {
+            emit("error", { message: "No next page to search for valid videoId", song });
+        }
     }
 }

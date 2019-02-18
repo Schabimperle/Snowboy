@@ -1,21 +1,19 @@
 import * as Discord from "discord.js";
 import nodeCleanup from "node-cleanup";
 
+import * as Config from "../config.json";
 import { Bot } from "./bot";
-import { IConfig } from "./config";
 
 class Client extends Discord.Client {
 
-    private config: IConfig;
     private bots: Map<Discord.Snowflake, Bot> = new Map();
 
-    constructor(configPath: string, opts?: Discord.ClientOptions) {
+    constructor(opts?: Discord.ClientOptions) {
         super(opts);
-        this.config = require(configPath);
         this.on("ready", this.onReady);
         this.on("message", this.onMessage);
         this.on("voiceStateUpdate", this.onVoiceStateUpdate);
-        this.login(this.config.discordToken);
+        this.login(Config.discordToken);
     }
 
     public disconect() {
@@ -29,16 +27,16 @@ class Client extends Discord.Client {
         }
 
         // debug
-        if (this.config.testChannelId) {
-            const channel = this.channels.get(this.config.testChannelId);
+        if (Config.testChannelId) {
+            const channel = this.channels.get(Config.testChannelId);
             if (channel && channel.type === "voice") {
                 const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
                 voiceChannel.join()
                     .then((connection) => {
                         const bot = new Bot(
                             connection,
-                            this.config.snowboyModels,
-                            this.config.ytApiToken);
+                            Config.snowboyModels,
+                            Config.ytApiToken);
                         this.bots.set(voiceChannel.guild.id, bot);
                     }).catch(console.error);
             }
@@ -50,13 +48,13 @@ class Client extends Discord.Client {
         if (!message.guild) { return; }
 
         // message intended for us?
-        if (!message.content.startsWith(this.config.prefix)) {
+        if (!message.content.startsWith(Config.prefix)) {
             return;
         }
 
         const bot = this.bots.get(message.guild.id);
 
-        switch (message.content.slice(this.config.prefix.length)) {
+        switch (message.content.slice(Config.prefix.length)) {
             case "join": {
                 // Only try to join the sender's voice channel if they are in one themselves
                 if (!message.member.voice.channel) {
@@ -81,7 +79,7 @@ class Client extends Discord.Client {
                 voiceChannel.join()
                     .then((con: Discord.VoiceConnection) => {
                         // create a new bot
-                        const newBot = new Bot(con, this.config.snowboyModels, this.config.ytApiToken);
+                        const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
                         this.bots.set(message.guild.id, newBot);
 
                         con.on("error", (err) => console.log("connection error, need to destroy channel bot here???"));
@@ -124,7 +122,7 @@ class Client extends Discord.Client {
     }
 }
 
-const client = new Client("../config.json", {});
+const client = new Client();
 
 process.on("SIGINT", cleanup);
 process.on("SIGTERM", cleanup);
