@@ -145,7 +145,7 @@ export class SpeechRecognizer extends Writable {
         for (const result of data.results) {
             if (result.isFinal) {
                 this.sttResult += result.alternatives[0].transcript.toLowerCase();
-                console.log("new final result:", this.sttResult);
+                console.log(`new final result:(${result.stability.toFixed(3)})`, this.sttResult);
                 this.checkTranscript(this.sttResult);
                 if (!this.match) {
                     this.endTranscribing(true);
@@ -153,8 +153,12 @@ export class SpeechRecognizer extends Writable {
                 }
             } else if (result.stability >= 0.5) {
                 const interimResult = this.sttResult + result.alternatives[0].transcript.toLowerCase();
-                console.log("interim result:", interimResult);
+                console.log(`interim result(${result.stability.toFixed(3)}):`, interimResult);
                 this.checkTranscript(interimResult);
+                if (!this.match) {
+                    this.endTranscribing(true);
+                    return;
+                }
             } else {
                 console.debug(`threw away(${result.stability.toFixed(3)}):`, result.alternatives[0].transcript);
             }
@@ -179,9 +183,11 @@ export class SpeechRecognizer extends Writable {
     private endTranscribing(destroy: boolean) {
         if (this.sttStream && this.sttStream.writable) {
             if (destroy) {
+                console.log("destroying stt");
                 this.sttStream.destroy();
                 this.handleSttEnd();
             } else {
+                console.log("ending stt");
                 this.sttStream.end();
             }
         }
