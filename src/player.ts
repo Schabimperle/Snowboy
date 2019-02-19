@@ -4,6 +4,8 @@ import { EventEmitter } from "events";
 import request from "request";
 import { Readable } from "stream";
 import ytdl from "ytdl-core";
+
+import * as Config from "./config.json";
 import { Song } from "./song";
 
 const YT_API_URL = "https://www.googleapis.com/youtube/v3/search";
@@ -185,7 +187,7 @@ export class Player extends EventEmitter {
             return;
         }
 
-        this.connection.play(song.stream)
+        this.connection.play(song.stream, { volume: Config.volume })
             .on("finish", this.onPlayFinish)
             .on("close", () => console.log("dispatcher closed", song.videoId))
             .on("end", () => console.log("dispatcher ended", song.videoId))

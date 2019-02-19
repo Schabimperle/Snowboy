@@ -44,10 +44,6 @@ export class Bot {
             })
             .on("error", (error, song) => console.error(error, song));
 
-        if (this.connection.client.user) {
-            this.connection.client.user.setActivity(Config.prefix + "help", { type: "LISTENING" });
-        }
-
         // listen to current members of the channel
         for (const member of this.connection.channel.members.values()) {
             this.listenTo(member);
@@ -140,7 +136,7 @@ export class Bot {
 
     public playSoundEffect(path: string, cb?: () => void) {
         console.log("playing sound file" + path);
-        this.connection.play(fs.createReadStream(path), { type: "ogg/opus" })
+        this.connection.play(fs.createReadStream(path), { type: "ogg/opus", volume: Config.volume })
             .on("finish", () => {
                 if (cb) {
                     cb();

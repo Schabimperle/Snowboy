@@ -24,6 +24,7 @@ class Client extends Discord.Client {
     private onReady() {
         if (this.user) {
             console.log(`Logged in as ${this.user.tag}!`);
+            this.user.setActivity(Config.prefix + "help", { type: "LISTENING" });
         }
 
         // debug
