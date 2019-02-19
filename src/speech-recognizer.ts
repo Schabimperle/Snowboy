@@ -24,8 +24,8 @@ const SPEECH_REQUEST = {
 };
 
 const TIMEOUT_SILENCE = 250;
-const TIMEOUT_BEFORE_MIN = 5000;
 const TIMEOUT_AFTER_MIN = 1000;
+const TIMEOUT_NO_MATCH = 3000;
 
 const SILENCE_BUFFER_250MS = fs.readFileSync("sounds/silence.pcm");
 
@@ -80,7 +80,7 @@ export class SpeechRecognizer extends Writable {
 
             this.sttStream.write(chunk, encoding, callback);
 
-            // set timer
+            // set silence timer
             clearTimeout(this.timer.handle);
             this.timer.handle = setTimeout(() => this.silenceTimeout(), TIMEOUT_SILENCE);
         } else {
@@ -102,18 +102,13 @@ export class SpeechRecognizer extends Writable {
         }
         this.timer.count++;
 
-        // check if we should end transcribing
-        if (!this.match) {
-            if (this.timer.count * TIMEOUT_SILENCE >= TIMEOUT_BEFORE_MIN) {
-                this.endTranscribing(false);
-            }
-        } else if (this.timer.count * TIMEOUT_SILENCE >= TIMEOUT_AFTER_MIN) {
+        // if we have a match and enough words to execute a command -> time out fast
+        if (this.match && this.timer.count * TIMEOUT_SILENCE >= TIMEOUT_AFTER_MIN) {
             this.endTranscribing(false);
+        } else {
+            this.timer.silenceCalled = true;
+            this.write(SILENCE_BUFFER_250MS);
         }
-
-        // write silence buffer to get better interim results from google stt
-        this.timer.silenceCalled = true;
-        this.write(SILENCE_BUFFER_250MS);
     }
 
     private handleDetectorHotword(index: number, hotword: string, buffer: Buffer) {
@@ -131,8 +126,12 @@ export class SpeechRecognizer extends Writable {
             .on("error", this.handleSttError.bind(this))
             .on("end", this.handleSttEnd.bind(this));
 
-        // time out if no data reveives
-        this.timer.handle = setTimeout(this.endTranscribing.bind(this), TIMEOUT_BEFORE_MIN);
+        // timeout if we don't even have a partial result after a long time
+        setTimeout(() => {
+            if (!this.match) {
+                this.endTranscribing(false);
+            }
+        }, TIMEOUT_NO_MATCH);
         this.emit("transcribe-start");
     }
 
@@ -181,6 +180,8 @@ export class SpeechRecognizer extends Writable {
     }
 
     private endTranscribing(destroy: boolean) {
+        clearTimeout(this.timer.handle);
+
         if (this.sttStream && this.sttStream.writable) {
             if (destroy) {
                 console.log("destroying stt");
@@ -195,6 +196,8 @@ export class SpeechRecognizer extends Writable {
     }
 
     private handleSttEnd() {
+        clearTimeout(this.timer.handle);
+
         if (!this.match) {
             this.emit("bad-command", "none", "");
         }
@@ -209,6 +212,7 @@ export class SpeechRecognizer extends Writable {
     }
 
     private handleSttError(error: any) {
+        clearTimeout(this.timer.handle);
         console.error(error);
         this.sttResult = "";
         this.sttStream = null;
