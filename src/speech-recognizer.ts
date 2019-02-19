@@ -10,9 +10,9 @@ const GOOGLE_KEYS_PATH = "./google-keys.json";
 
 const SPEECH_REQUEST = {
     config: {
-        alternativeLanguageCodes: ["en-US"],
+        alternativeLanguageCodes: ["de-DE"],
         encoding: "LINEAR16",
-        languageCode: "de-DE",
+        languageCode: "en-US",
         // maxAlternatives: 5,
         sampleRateHertz: 16000,
         speechContexts: [{
