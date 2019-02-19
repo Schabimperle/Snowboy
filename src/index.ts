@@ -1,8 +1,8 @@
 import * as Discord from "discord.js";
 import nodeCleanup from "node-cleanup";
 
-import * as Config from "../config.json";
 import { Bot } from "./bot";
+import * as Config from "./config.json";
 
 class Client extends Discord.Client {
 
@@ -55,7 +55,7 @@ class Client extends Discord.Client {
         const bot = this.bots.get(message.guild.id);
 
         switch (message.content.slice(Config.prefix.length)) {
-            case "join": {
+            case "join":
                 // Only try to join the sender's voice channel if they are in one themselves
                 if (!message.member.voice.channel) {
                     message.reply("You need to join a voice channel first!");
@@ -89,15 +89,33 @@ class Client extends Discord.Client {
                         });
                     }).catch(console.error);
                 break;
-            }
-            case "leave": {
+            case "leave":
                 // leave if we have a voice connection to the channel of the author of the message
                 if (bot && bot.connection.channel.id === message.member.voice.channelID) {
                     bot.disconnect();
                     this.bots.delete(message.guild.id);
                 }
                 break;
-            }
+            case "help":
+                message.reply(
+                    `\n` +
+                    `Available text commands:\n` +
+                    `\t${Config.prefix}join\t join your channel\n` +
+                    `\t${Config.prefix}leave\t leave your channel\n` +
+                    `\t${Config.prefix}help\t answer with this help message\n` +
+                    `\n` +
+                    `In your channel, i will listen for the voice command "${Config.snowboyModels[0].hotwords}"\n` +
+                    `After triggering the the hotword, i will listen for the following voice commands:\n` +
+                    `\tplay ...\t plays the requested song, e.g. "snowboy, play eminem"\n` +
+                    `\tnext result\t skips currently played song and plays next search result for your request\n` +
+                    `\tadd ...\t adds a song to your playlist\n` +
+                    `\tpause\t pauses the currently played song\n` +
+                    `\tresume\t resumes a paused song\n` +
+                    `\tskip\t skips the currently played song\n` +
+                    `\tstop\t stops playing and clears your playlist\n` +
+                    `\tleave\t - leave your channel\n`);
+                break;
+
         }
     }
 

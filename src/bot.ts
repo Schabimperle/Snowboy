@@ -6,8 +6,8 @@ import * as prism from "prism-media";
 // @ts-ignore
 import Models from "snowboy";
 
-import * as Config from "../config.json";
 import { Command } from "./command";
+import * as Config from "./config.json";
 import { Player } from "./player";
 import { Song } from "./song";
 import { SpeechRecognizer } from "./speech-recognizer";
