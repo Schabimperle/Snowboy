@@ -1,11 +1,12 @@
 import * as Discord from "discord.js";
-import ffmpeg from "fluent-ffmpeg";
+import ffmpeg, { FfmpegCommand } from "fluent-ffmpeg";
 import * as fs from "fs";
 // @ts-ignore
 import * as prism from "prism-media";
 // @ts-ignore
 import Models from "snowboy";
 
+import { Readable, Writable } from "stream";
 import { Command } from "./command";
 import * as Config from "./config.json";
 import { Player } from "./player";
@@ -30,6 +31,11 @@ export class Bot {
     private ytApiKey: string;
     private player: Player;
     private manuallyPaused: boolean = false;
+    private users: Map<Discord.Snowflake, {
+        discordStream: Readable,
+        ffmpegCommand: FfmpegCommand,
+        recognizer: Writable,
+    }> = new Map();
 
     constructor(connection: Discord.VoiceConnection, models: Models, ytApiKey: string) {
         this.connection = connection;
@@ -151,23 +157,30 @@ export class Bot {
             return;
         }
 
-        const stream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" })
+        // if already listening, stop listening before
+        if (this.users.has(member.id)) {
+            this.stopListeningTo(member);
+        }
+
+        const discordStream = this.connection.receiver.createStream(member, { mode: "pcm", end: "manual" })
             // .on("data", () => console.debug("sound"))
             .on("error", () => console.error)
-            .on("end", () => console.debug("user stream ended"));
+            .on("end", () => console.debug("user discordStream ended"));
 
         const recognizer = new SpeechRecognizer(this.models, COMMANDS)
             .on("hotword", () => this.onHotword(member))
             .on("command", (command: string, text: string) => this.onCommand(member, command, text))
             .on("bad-command", (command: string, text: string) => this.onBadCommand(member, command, text));
 
-        ffmpeg(stream)
+        const ffmpegCommand = ffmpeg(discordStream)
             .inputFormat("s32le")
             .audioFrequency(16000)
             .audioCodec("pcm_s16le")
             .format("s16le")
-            .on("error", console.error)
-            .pipe(recognizer);
+            .on("error", console.error);
+        ffmpegCommand.pipe(recognizer);
+
+        this.users.set(member.id, { discordStream, ffmpegCommand, recognizer });
 
         console.debug("listening to", member.user.username);
     }
@@ -180,9 +193,16 @@ export class Bot {
         if (this.connection.client.user && member.id === this.connection.client.user.id) {
             return;
         }
-        // returns an existing stream if there is one already (which should be the case)
-        const stream = this.connection.receiver.createStream(member);
-        stream.push(null);
+
+        const user = this.users.get(member.id);
+        if (!user) {
+            return;
+        }
+
+        // @ts-ignore
+        user.discordStream.push(null);
+        // user.discordStream.destroy();
+        this.users.delete(member.id);
         console.debug("stopped listening to", member.user.username);
     }
 }

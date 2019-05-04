@@ -18,8 +18,9 @@ export class Player extends EventEmitter {
     private queue: Song[] = [];
     private lastPlayed?: Song;
     private paused: {
-        opus: Readable;
-        ffmpeg: Readable;
+        song: Song,
+        opus: Readable,
+        ffmpeg: Readable,
     } | null = null;
     private autoplay: boolean;
     private onPlayFinish: () => void;
@@ -85,7 +86,7 @@ export class Player extends EventEmitter {
      * pauses the currently played song (by unpiping the opus stream)
      */
     public pause() {
-        if (!this.isPlaying) {
+        if (!this.isPlaying || !this.lastPlayed) {
             console.log("skipping pause call, we're not Playing");
             return;
         }
@@ -98,6 +99,7 @@ export class Player extends EventEmitter {
             ffmpeg: this.connection.dispatcher.streams.ffmpeg,
             // @ts-ignore
             opus: this.connection.dispatcher.streams.opus,
+            song: this.lastPlayed,
         };
         // @ts-ignore
         this.connection.dispatcher.streams.ffmpeg = null;
@@ -109,8 +111,9 @@ export class Player extends EventEmitter {
 
     public clearPaused() {
         if (this.paused) {
-            this.paused.ffmpeg.destroy();
-            this.paused.opus.destroy();
+            if (this.paused.song.stream) {
+                this.paused.song.stream.destroy();
+            }
             this.paused = null;
         }
     }
@@ -261,6 +264,7 @@ export class Player extends EventEmitter {
                     song.info = info;
                 })
                 .on("end", () => console.log("ytdl stream end"))
+                .on("close", () => console.log("ytdl stream close"))
                 .on("error", (err) => console.error("ytdl stream error:", err));
             cb(song);
             // check next page if we dint't

@@ -34,11 +34,11 @@ class Client extends Discord.Client {
                 const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
                 voiceChannel.join()
                     .then((connection) => {
-                        const bot = new Bot(
+                        const oldBot = new Bot(
                             connection,
                             Config.snowboyModels,
                             Config.ytApiToken);
-                        this.bots.set(voiceChannel.guild.id, bot);
+                        this.bots.set(voiceChannel.guild.id, oldBot);
                     }).catch(console.error);
             }
         }
@@ -53,7 +53,7 @@ class Client extends Discord.Client {
             return;
         }
 
-        const bot = this.bots.get(message.guild.id);
+        const oldBot = this.bots.get(message.guild.id);
 
         switch (message.content.slice(Config.prefix.length)) {
             case "join":
@@ -64,36 +64,38 @@ class Client extends Discord.Client {
                 }
 
                 // Are we connected already?
-                if (bot && bot.connection.channel.id === message.member.voice.channelID) {
-                    console.debug("we are already connected to", bot.connection.channel.name);
+                if (oldBot && oldBot.connection.channel.id === message.member.voice.channelID) {
+                    console.debug("we are already connected to", oldBot.connection.channel.name);
                     return;
                 }
 
                 // cleanup existing connection
-                if (bot) {
-                    console.debug("cleaning up existing connection to", bot.connection.channel.name);
-                    bot.disconnect();
+                if (oldBot) {
+                    console.debug("cleaning up existing connection to", oldBot.connection.channel.name);
+                    oldBot.disconnect();
                 }
 
                 // setup new connection
                 const voiceChannel = message.member.voice.channel;
                 voiceChannel.join()
                     .then((con: Discord.VoiceConnection) => {
-                        // create a new bot
+                        // create a new oldBot
                         const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
                         this.bots.set(message.guild.id, newBot);
 
-                        con.on("error", (err) => console.log("connection error, need to destroy channel bot here???"));
+                        con.on("error", (err) => {
+                            this.bots.forEach((bot) => bot.disconnect());
+                        });
                         con.on("disconnect", (err) => {
-                            console.log("voiceConnection disconnect, removing bot from map");
+                            console.log("voiceConnection disconnect, removing oldBot from map");
                             this.bots.delete(message.guild.id);
                         });
                     }).catch(console.error);
                 break;
             case "leave":
                 // leave if we have a voice connection to the channel of the author of the message
-                if (bot && bot.connection.channel.id === message.member.voice.channelID) {
-                    bot.disconnect();
+                if (oldBot && oldBot.connection.channel.id === message.member.voice.channelID) {
+                    oldBot.disconnect();
                     this.bots.delete(message.guild.id);
                 }
                 break;
@@ -151,5 +153,4 @@ function cleanup() {
     if (client) {
         client.disconect();
     }
-    process.exit();
 }
