@@ -19,26 +19,27 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@types/node": "^10.12.26",
+    "@types/node": "^10.14.9",
     "@types/node-cleanup": "^2.1.0",
-    "nodemon": "^1.18.10",
-    "ts-node": "^8.0.2",
-    "tslint": "^5.12.1",
-    "typescript": "^3.3.3"
+    "nodemon": "^1.19.1",
+    "ts-node": "^8.3.0",
+    "tslint": "^5.17.0",
+    "typescript": "^3.5.2"
   },
   "dependencies": {
-    "@google-cloud/speech": "^2.3.0",
-    "@types/fluent-ffmpeg": "^2.1.9",
+    "@google-cloud/speech": "^2.3.1",
+    "@types/fluent-ffmpeg": "^2.1.10",
+    "@types/ws": "^6.0.1",
     "bufferutil": "^4.0.1",
-    "discord.js": "github:discordjs/discord.js#0564c5c777cfd2391261417a2047d4d7f92474ca",
-    "prism-media": "github:amishshah/prism-media#de5e60a08c14107d04b5db1f285fa1333f93e1d4",
+    "discord.js": "github:discordjs/discord.js#master",
     "erlpack": "github:hammerandchisel/erlpack",
     "fluent-ffmpeg": "^2.1.2",
     "node-cleanup": "^2.1.2",
-    "node-opus": "^0.3.1",
+    "node-opus": "^0.3.2",
+    "prism-media": "github:amishshah/prism-media#master",
     "request": "^2.88.0",
     "snowboy": "^1.3.1",
     "sodium": "^3.0.2",
-    "ytdl-core": "^0.29.1"
+    "ytdl-core": "^0.29.2"
   }
 }

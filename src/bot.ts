@@ -58,15 +58,15 @@ export class Bot {
 
     public onVoiceStateUpdate(oldState: Discord.VoiceState, newState: Discord.VoiceState) {
         // user muted/deafened himself -> ignore?
-        if (newState.channelID === oldState.channelID) {
+        if (newState.member && newState.channelID === oldState.channelID) {
             console.debug(newState.member.user.username, "muted/deafened himself");
 
             // member joined channel
-        } else if (newState.channelID === this.connection.channel.id) {
+        } else if (newState.member && newState.channelID === this.connection.channel.id) {
             console.debug(newState.member.user.username, "connected");
             this.listenTo(newState.member);
             // member left channel
-        } else if (oldState.channelID === this.connection.channel.id) {
+        } else if (oldState.member && oldState.channelID === this.connection.channel.id) {
             console.debug(oldState.member.user.username, "disconnected");
             this.stopListeningTo(oldState.member);
         }

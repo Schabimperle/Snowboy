@@ -46,7 +46,7 @@ class Client extends Discord.Client {
 
     private onMessage(message: Discord.Message) {
         // Voice only works in guilds, if the message does not come from a guild, we ignore it
-        if (!message.guild) { return; }
+        if (!message.guild || !message.member) { return; }
 
         // message intended for us?
         if (!message.content.startsWith(Config.prefix)) {
@@ -79,6 +79,10 @@ class Client extends Discord.Client {
                 const voiceChannel = message.member.voice.channel;
                 voiceChannel.join()
                     .then((con: Discord.VoiceConnection) => {
+                        if (!message.guild) {
+                            return;
+                        }
+
                         // create a new oldBot
                         const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
                         this.bots.set(message.guild.id, newBot);
@@ -87,6 +91,9 @@ class Client extends Discord.Client {
                             this.bots.forEach((bot) => bot.disconnect());
                         });
                         con.on("disconnect", (err) => {
+                            if (!message.guild) {
+                                return;
+                            }
                             console.log("voiceConnection disconnect, removing oldBot from map");
                             this.bots.delete(message.guild.id);
                         });
@@ -123,8 +130,13 @@ class Client extends Discord.Client {
     }
 
     private onVoiceStateUpdate(oldState: Discord.VoiceState, newState: Discord.VoiceState) {
-        // ignore ourself
-        if (this.user && this.user.id === oldState.member.user.id) {
+        // ignore ourself (this bot)
+        if (newState.member && this.user && this.user.id === newState.member.user.id) {
+            return;
+        }
+
+        // check object to be not null
+        if (!newState.member) {
             return;
         }
 
