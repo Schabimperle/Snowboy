@@ -7,7 +7,7 @@
   "scripts": {
     "start": "npm run build && node lib/index.js",
     "build": "tsc",
-    "clean": "rm -rf lib && npm run service:uninstall",
+    "clean": "npm run service:uninstall && rm -rf lib",
     "production": "npm run clean && npm install --no-save && npm run build && npm run service:install",
     "service:install": "./service.sh i",
     "service:uninstall": "./service.sh u || true",
@@ -40,6 +40,7 @@
     "request": "^2.88.0",
     "snowboy": "^1.3.1",
     "sodium": "^3.0.2",
+    "youtube-dl": "^2.0.0",
     "ytdl-core": "^0.29.2"
   }
 }

@@ -259,7 +259,7 @@ export class Player extends EventEmitter {
         if (song.itemIndex !== startIndex) {
             const url = YT_VIDEO_URL + song.videoId;
             console.debug("queueing", url);
-            song.stream = ytdl(url, { quality: "highestaudio"/*, highWaterMark: 1*/ })
+            song.stream = ytdl(url, { quality: "highestaudio", highWaterMark: 1<<25 })
                 .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
                     song.info = info;
                 })
@@ -271,7 +271,7 @@ export class Player extends EventEmitter {
         } else if (song.response.nextPageToken) {
             song.requestOpts.qs.pageToken = song.response.nextPageToken;
             this.search(song.requestOpts, cb);
-            // we can't find a valid index6
+            // we can't find a valid index
         } else {
             emit("error", { message: "No next page to search for valid videoId", song });
         }

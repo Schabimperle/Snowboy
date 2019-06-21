@@ -32,7 +32,7 @@ EOF
     # enable user to run services when logged out
     loginctl enable-linger `whoami`
 
-    echo "Successfully installed service, check status by executing 'systemctl --user status $SERVICE_NAME'"
+    echo "Successfully installed and started service, check status by executing 'systemctl --user status $SERVICE_NAME'"
     ;;
 
 "uninstall" | "u")
