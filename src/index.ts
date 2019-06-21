@@ -1,8 +1,20 @@
 import * as Discord from "discord.js";
-import nodeCleanup from "node-cleanup";
 
 import { Bot } from "./bot";
 import * as Config from "./config.json";
+
+// workaround for not receiving audio data from users after joining a channel
+// @ts-ignore
+import Silence from "../node_modules/discord.js/src/client/voice/util/Silence.js";
+class SomeSilence extends Silence {
+    _read() {
+        for(let i = 0; i < 20; i++) {
+            super._read();
+        }
+        // @ts-ignore
+        this.push(null);
+    }
+}
 
 class Client extends Discord.Client {
 
@@ -79,23 +91,28 @@ class Client extends Discord.Client {
                 const voiceChannel = message.member.voice.channel;
                 voiceChannel.join()
                     .then((con: Discord.VoiceConnection) => {
-                        if (!message.guild) {
-                            return;
-                        }
+                        // for a description see comment above class SomeSilence
+                        // @ts-ignore
+                        const dispatcher = con.play(new SomeSilence(), { type: 'opus' });
+                        dispatcher.on('finish', () => {
 
-                        // create a new oldBot
-                        const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
-                        this.bots.set(message.guild.id, newBot);
-
-                        con.on("error", (err) => {
-                            this.bots.forEach((bot) => bot.disconnect());
-                        });
-                        con.on("disconnect", (err) => {
                             if (!message.guild) {
                                 return;
                             }
-                            console.log("voiceConnection disconnect, removing oldBot from map");
-                            this.bots.delete(message.guild.id);
+                             // create a new oldBot
+                            const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
+                            this.bots.set(message.guild.id, newBot);
+
+                            con.on("error", (err) => {
+                                this.bots.forEach((bot) => bot.disconnect());
+                            });
+                            con.on("disconnect", (err) => {
+                                if (!message.guild) {
+                                    return;
+                                }
+                                console.log("voiceConnection disconnect, removing oldBot from map");
+                                this.bots.delete(message.guild.id);
+                            });
                         });
                     }).catch(console.error);
                 break;

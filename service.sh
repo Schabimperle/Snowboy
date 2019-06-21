@@ -36,8 +36,8 @@ EOF
     ;;
 
 "uninstall" | "u")
-    systemctl --user stop $SERVICE_NAME
-    systemctl --user disable $SERVICE_NAME
+    systemctl --user --force stop $SERVICE_NAME
+    systemctl --user --force disable $SERVICE_NAME
     rm ~/.config/systemd/user/$SERVICE_NAME.service
     systemctl --user daemon-reload
     systemctl --user reset-failed
