@@ -23,6 +23,7 @@ export class Player extends EventEmitter {
         ffmpeg: Readable,
     } | null = null;
     private autoplay: boolean;
+    private autoplayHistory: string[] = [];
     private onPlayFinish: () => void;
 
     constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
@@ -60,7 +61,7 @@ export class Player extends EventEmitter {
             },
         };
         this.search(opts, (song) => {
-            this.playSong(song);
+            this.playSong(song, false);
         });
     }
 
@@ -146,7 +147,8 @@ export class Player extends EventEmitter {
      * @event Player#end
      */
     public stop() {
-        this.queue = [];
+        this.queue.length = 0;
+        this.autoplayHistory.length = 0;
         this.clearPaused();
         if (this.connection.dispatcher) {
             this.connection.dispatcher.destroy();
@@ -155,13 +157,16 @@ export class Player extends EventEmitter {
         // TODO finish source stream here? (through stream.push(null))
     }
 
+    /**
+     * plays the next search result from the last search
+     */
     public playNextResult() {
         if (!this.lastPlayed) {
             return;
         }
 
         this.findNextValidSong(this.lastPlayed, (song) => {
-            this.playSong(song);
+            this.playSong(song, false);
         });
     }
 
@@ -182,13 +187,23 @@ export class Player extends EventEmitter {
             return;
         }
 
-        this.playSong(song);
+        this.playSong(song, false);
     }
 
-    private playSong(song: Song) {
+    /**
+     * starts playing a given song
+     * @param song 
+     * @param calledByAutoplay
+     */
+    private playSong(song: Song, calledByAutoplay: Boolean) {
         if (!song.stream) {
             return;
         }
+
+        if (!calledByAutoplay) {
+            this.autoplayHistory.length = 0;
+        }
+        this.autoplayHistory.push(song.videoId);
 
         this.connection.play(song.stream, { volume: Config.volume })
             .on("finish", this.onPlayFinish)
@@ -202,6 +217,9 @@ export class Player extends EventEmitter {
         this.emit("song", song);
     }
 
+    /**
+     * searches and plays the next auto play song depending on the last played song
+     */
     private doAutoplay() {
         if (!this.lastPlayed) {
             console.debug("skipping autoplay call, no last played song");
@@ -217,10 +235,15 @@ export class Player extends EventEmitter {
             },
         };
         this.search(opts, (song) => {
-            this.playSong(song);
+            this.playSong(song, true);
         });
     }
 
+    /**
+     * Does various youtube api calls depending on the given requestOpts
+     * @param requestOpts 
+     * @param cb 
+     */
     private search(requestOpts: request.CoreOptions, cb: (song: Song) => void) {
         const reqSong = new Song(requestOpts);
 
@@ -241,6 +264,11 @@ export class Player extends EventEmitter {
         );
     }
 
+    /**
+     * finds the next valid song item (ignores playlist and user items) by iterating through the search result item list
+     * @param song 
+     * @param cb 
+     */
     private findNextValidSong(song: Song, cb: (song: Song) => void) {
         if (!song.response.items.length) {
             this.emit("error", { message: "No search results", song });
@@ -254,12 +282,19 @@ export class Player extends EventEmitter {
                 break;
             }
         }
-
+        
         // did we find a valid index?
         if (song.itemIndex !== startIndex) {
+            // if the found song was already autoplayed, resume searching
+            if (this.autoplayHistory.find((apVideoId) => apVideoId == song.videoId)) {
+                this.findNextValidSong(song, cb);
+                return;
+            }
+
             const url = YT_VIDEO_URL + song.videoId;
             console.debug("queueing", url);
-            song.stream = ytdl(url, { quality: "highestaudio", highWaterMark: 1<<25 })
+            // highwatermark defines buffersize for the video download (1<<20 = 1048576 Bytes = ~1MB)
+            song.stream = ytdl(url, { quality: "highestaudio", highWaterMark: 1<<20 })
                 .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
                     song.info = info;
                 })
@@ -267,7 +302,7 @@ export class Player extends EventEmitter {
                 .on("close", () => console.log("ytdl stream close"))
                 .on("error", (err) => console.error("ytdl stream error:", err));
             cb(song);
-            // check next page if we dint't
+            // ...check next page if we dint't
         } else if (song.response.nextPageToken) {
             song.requestOpts.qs.pageToken = song.response.nextPageToken;
             this.search(song.requestOpts, cb);
