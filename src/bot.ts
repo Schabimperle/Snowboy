@@ -1,6 +1,7 @@
 import * as Discord from "discord.js";
 import ffmpeg, { FfmpegCommand } from "fluent-ffmpeg";
 import * as fs from "fs";
+import { EventEmitter } from "events";
 // @ts-ignore
 import * as prism from "prism-media";
 // @ts-ignore
@@ -28,7 +29,6 @@ export class Bot {
 
     public readonly connection: Discord.VoiceConnection;
     private models: Models;
-    private ytApiKey: string;
     private player: Player;
     private manuallyPaused: boolean = false;
     private users: Map<Discord.Snowflake, {
@@ -40,7 +40,6 @@ export class Bot {
     constructor(connection: Discord.VoiceConnection, models: Models, ytApiKey: string) {
         this.connection = connection;
         this.models = models;
-        this.ytApiKey = ytApiKey;
         this.player = new Player(connection, ytApiKey, true)
             .on("song", (song: Song) => {
                 // TODO communicate to user
@@ -92,6 +91,9 @@ export class Bot {
 
     public onBadCommand(member: Discord.GuildMember, command: string, text: string) {
         console.debug("onBadCommand", command + ":", text);
+        if (this.player.isPlaying) {
+            this.player.pause();
+        }
         this.playSoundEffect("sounds/failure-02.ogg", () => {
             if (this.player.isPaused && !this.manuallyPaused) {
                 this.player.resume();
@@ -99,25 +101,41 @@ export class Bot {
         });
     }
 
+    public onTextCommand(member: Discord.GuildMember, command: string, text:string) {
+        if (COMMANDS.some(availableCommand => command === availableCommand.command)) {
+            this.onCommand(member, command, text);
+        } else {
+            this.onBadCommand(member, command, text);
+        }
+    }
+
     public onCommand(member: Discord.GuildMember, command: string, text: string) {
         console.debug("onCommand", command + ":", text);
+        if (this.player.isPlaying) {
+            this.player.pause();
+        }
         this.playSoundEffect("sounds/success-01.ogg", () => {
             switch (command) {
                 case "play":
+                    this.manuallyPaused = false;
                     this.player.clearPaused();
                     this.player.play(text);
                     break;
                 case "next result":
+                    this.manuallyPaused = false;
                     this.player.clearPaused();
                     this.player.playNextResult();
                     break;
                 case "add":
                     this.player.add(text);
-                    this.player.resume();
+                    // playing a sound effect pauses the currently played music so we need to resume here
+                    if (this.player.isPaused && !this.manuallyPaused) {
+                        this.player.resume();
+                    }
                     break;
                 case "pause":
                     this.manuallyPaused = true;
-                    // we already paused in onHotword()...
+                    // we already paused because of the sound effects
                     break;
                 case "resume":
                     this.manuallyPaused = false;
@@ -125,17 +143,21 @@ export class Bot {
                     break;
                 case "skip":
                     this.player.clearPaused();
+                    this.manuallyPaused = false;
                     this.player.playNext();
                     break;
                 case "stop":
+                    this.manuallyPaused = false;
                     this.player.stop();
                     break;
                 case "leave":
                     this.disconnect();
                     break;
                 default:
-                    console.debug("command '" + command + "' not implemented yet");
-                    this.player.resume();
+                    console.debug(command + " is no known command");
+                    if (this.player.isPaused && !this.manuallyPaused) {
+                        this.player.resume();
+                    }
             }
         });
     }

@@ -24,23 +24,32 @@ export class Player extends EventEmitter {
     } | null = null;
     private autoplay: boolean;
     private autoplayHistory: string[] = [];
-    private onPlayFinish: () => void;
-
+    
     constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
         super();
         this.connection = connection;
         this.ytApiKey = ytApiKey;
-        this.onPlayFinish = () => {
-            console.log("dispatcher finished, playing next");
-            this.playNext();
-        };
         this.autoplay = autoplay;
     }
 
+    /**
+     * gets called when a song is finished
+     */
+    private onPlayFinish() {
+        console.log("dispatcher finished, playing next");
+        this.playNext();
+    };
+
+    /**
+     * getter for paused status
+     */
     public get isPaused() {
         return Boolean(this.paused);
     }
 
+    /**
+     * getter for playing status
+     */
     public get isPlaying() {
         return this.connection.speaking.has(Discord.Speaking.FLAGS.SPEAKING);
     }
@@ -110,6 +119,9 @@ export class Player extends EventEmitter {
         this.connection.dispatcher.destroy();
     }
 
+    /**
+     * clear paused song
+     */
     public clearPaused() {
         if (this.paused) {
             if (this.paused.song.stream) {

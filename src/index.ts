@@ -65,9 +65,13 @@ class Client extends Discord.Client {
             return;
         }
 
-        const oldBot = this.bots.get(message.guild.id);
+        const oldBot: Bot | undefined = this.bots.get(message.guild.id);
 
-        switch (message.content.slice(Config.prefix.length)) {
+        let endCommandIdx: number = message.content.indexOf(' ');
+        if (endCommandIdx === -1) endCommandIdx = message.content.length;
+        const command: string = message.content.slice(Config.prefix.length, endCommandIdx);
+        const text: string = endCommandIdx < message.content.length ? message.content.slice(endCommandIdx+1, message.content.length) : '';
+        switch (command) {
             case "join":
                 // Only try to join the sender's voice channel if they are in one themselves
                 if (!message.member.voice.channel) {
@@ -91,6 +95,7 @@ class Client extends Discord.Client {
                 const voiceChannel = message.member.voice.channel;
                 voiceChannel.join()
                     .then((con: Discord.VoiceConnection) => {
+
                         // for a description see comment above class SomeSilence
                         // @ts-ignore
                         const dispatcher = con.play(new SomeSilence(), { type: 'opus' });
@@ -99,12 +104,12 @@ class Client extends Discord.Client {
                             if (!message.guild) {
                                 return;
                             }
-                             // create a new oldBot
+                             // create a new bot
                             const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
                             this.bots.set(message.guild.id, newBot);
 
                             con.on("error", (err) => {
-                                this.bots.forEach((bot) => bot.disconnect());
+                                console.error(err);
                             });
                             con.on("disconnect", (err) => {
                                 if (!message.guild) {
@@ -115,13 +120,6 @@ class Client extends Discord.Client {
                             });
                         });
                     }).catch(console.error);
-                break;
-            case "leave":
-                // leave if we have a voice connection to the channel of the author of the message
-                if (oldBot && oldBot.connection.channel.id === message.member.voice.channelID) {
-                    oldBot.disconnect();
-                    this.bots.delete(message.guild.id);
-                }
                 break;
             case "help":
                 message.reply(
@@ -142,7 +140,20 @@ class Client extends Discord.Client {
                     `\tstop\t stops playing and clears your playlist\n` +
                     `\tleave\t - leave your channel\n`);
                 break;
+            default:
+                // sender in a voice channel?
+                if (!message.member.voice.channel) {
+                    message.reply(`You need to join a voice channel first, then type "${Config.prefix}join" to call me to join your channel`);
+                    return;
+                }
 
+                // watch reply for a description
+                if (!oldBot || oldBot.connection.channel.id !== message.member.voice.channelID) {
+                    message.reply(`You need to be in the same channel as me before yelling commands. Type "${Config.prefix}join" to call me to enter your channel`);
+                    return;
+                }
+
+                oldBot.onTextCommand(message.member, command, text);
         }
     }
 
