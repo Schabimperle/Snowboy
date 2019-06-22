@@ -162,7 +162,7 @@ export class Player extends EventEmitter {
     public stop() {
         // finish currently played song
         if (this.lastPlayed && this.lastPlayed.stream) {
-            this.lastPlayed.stream.push(null);
+            this.lastPlayed.stream.destroy();
         }
 
         this.queue.length = 0;
