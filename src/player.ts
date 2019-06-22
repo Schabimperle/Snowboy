@@ -24,21 +24,22 @@ export class Player extends EventEmitter {
     } | null = null;
     private autoplay: boolean;
     private autoplayHistory: string[] = [];
+    private onPlayFinish: () => void;
     
     constructor(connection: Discord.VoiceConnection, ytApiKey: string, autoplay: boolean) {
         super();
         this.connection = connection;
         this.ytApiKey = ytApiKey;
         this.autoplay = autoplay;
+        /**
+         * gets called when a song is finished
+         */
+        this.onPlayFinish = () => {
+            console.log("dispatcher finished, playing next");
+            this.playNext();
+        };
     }
 
-    /**
-     * gets called when a song is finished
-     */
-    private onPlayFinish() {
-        console.log("dispatcher finished, playing next");
-        this.playNext();
-    };
 
     /**
      * getter for paused status
@@ -159,6 +160,11 @@ export class Player extends EventEmitter {
      * @event Player#end
      */
     public stop() {
+        // finish currently played song
+        if (this.lastPlayed && this.lastPlayed.stream) {
+            this.lastPlayed.stream.push(null);
+        }
+
         this.queue.length = 0;
         this.autoplayHistory.length = 0;
         this.clearPaused();
@@ -166,11 +172,6 @@ export class Player extends EventEmitter {
         // close discord player connection
         if (this.connection.dispatcher) {
             this.connection.dispatcher.destroy();
-        }
-
-        // finish currently played song
-        if (this.lastPlayed && this.lastPlayed.stream) {
-            this.lastPlayed.stream.push(null);
         }
 
         this.emit("end");
@@ -306,6 +307,7 @@ export class Player extends EventEmitter {
         if (song.itemIndex !== startIndex) {
             // if the found song was already autoplayed, resume searching
             if (this.autoplayHistory.find((apVideoId) => apVideoId == song.videoId)) {
+                console.debug(`skipping ${song.videoId} to prevent autplay loop`)
                 this.findNextValidSong(song, cb);
                 return;
             }
