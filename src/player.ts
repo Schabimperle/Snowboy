@@ -162,11 +162,18 @@ export class Player extends EventEmitter {
         this.queue.length = 0;
         this.autoplayHistory.length = 0;
         this.clearPaused();
+
+        // close discord player connection
         if (this.connection.dispatcher) {
             this.connection.dispatcher.destroy();
         }
+
+        // finish currently played song
+        if (this.lastPlayed && this.lastPlayed.stream) {
+            this.lastPlayed.stream.push(null);
+        }
+
         this.emit("end");
-        // TODO finish source stream here? (through stream.push(null))
     }
 
     /**
