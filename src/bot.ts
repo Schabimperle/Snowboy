@@ -101,8 +101,18 @@ export class Bot {
         });
     }
 
-    public onTextCommand(member: Discord.GuildMember, command: string, text:string) {
-        if (COMMANDS.some(availableCommand => command === availableCommand.command)) {
+    public onTextCommand(member: Discord.GuildMember, command: string) {
+        let found: boolean = false;
+        let text = '';
+        for (const defCommand of COMMANDS) {
+            if (command.startsWith(defCommand.command)) {
+                found = true;
+                text = command.slice(defCommand.command.length + 1);
+                command = command.slice(0, defCommand.command.length);
+            }
+        }
+
+        if (found) {
             this.onCommand(member, command, text);
         } else {
             this.onBadCommand(member, command, text);
