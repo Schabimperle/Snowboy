@@ -3,10 +3,11 @@
 # exit script on error
 set -e
 
-SERVICE_NAME=speech-music-bot
+# service name is defined by parent folder name
+SERVICE_NAME=${PWD##*/}
 
 case "$1" in
-"install" | "i") 
+"install") 
     mkdir -p ~/.config/systemd/user
 
     cat << EOF > ~/.config/systemd/user/$SERVICE_NAME.service
@@ -35,18 +36,30 @@ EOF
     echo "Successfully installed and started service, check status by executing 'systemctl --user status $SERVICE_NAME'"
     ;;
 
-"uninstall" | "u")
-    systemctl --user --force stop $SERVICE_NAME
-    systemctl --user --force disable $SERVICE_NAME
-    rm ~/.config/systemd/user/$SERVICE_NAME.service
+"uninstall")
+    systemctl --user stop $SERVICE_NAME || true
+    systemctl --user disable $SERVICE_NAME || true
+    rm ~/.config/systemd/user/$SERVICE_NAME.service || true
     systemctl --user daemon-reload
     systemctl --user reset-failed
 
     echo "Successfully removed service"
     ;;
 
-"restart" | "r")
+"start")
+    systemctl --user start $SERVICE_NAME
+    ;;
+
+"stop")
+    systemctl --user stop $SERVICE_NAME || true
+    ;;
+
+"restart")
     systemctl --user restart $SERVICE_NAME
+    ;;
+
+"log")
+    journalctl --user -u $SERVICE_NAME -f
     ;;
 
 *)
