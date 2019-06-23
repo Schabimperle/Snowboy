@@ -234,7 +234,7 @@ export class Bot {
         // @ts-ignore
         // user.discordStream.push(null);
         user.discordStream.destroy();
-        user.ffmpegCommand.kill("9");
+        // user.ffmpegCommand.kill("9");
         this.users.delete(member.id);
         console.debug("stopped listening to", member.user.username);
     }
