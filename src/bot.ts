@@ -141,13 +141,15 @@ export class Bot {
                     this.player.clearPaused();
                     this.extractSongs(text)
                     .then((songs: string[]) => {
-                        for(let song of songs) {
-                            this.player.play(song);
+                        // play the first song
+                        this.player.play(songs.shift() || '');
+                        // add the rest to the playlist
+                        for (let song of songs) {
+                            this.player.add(song);
                         }
                     }).catch((err: any) => {
                         console.error(err);
                     })
-                    this.player.play(text);
                     break;
                 case "next result":
                     this.manuallyPaused = false;
@@ -157,7 +159,7 @@ export class Bot {
                 case "add":
                     this.extractSongs(text)
                     .then((songs: string[]) => {
-                        for(let song of songs) {
+                        for (let song of songs) {
                             this.player.add(song);
                         }
                     }).catch((err: any) => {

@@ -14,18 +14,26 @@ export class Song {
     }
 
     public get item() {
+        if (!this.response)
+            return undefined;
         return this.response.items[this.itemIndex];
     }
 
     public get videoId() {
+        if (!this.item)
+            return undefined;
         return this.item.id.videoId;
     }
 
     public get searchText() {
+        if (!this.requestOpts)
+            return undefined;
         return this.requestOpts.qs.q;
     }
 
     public get title() {
+        if (!this.item) 
+            return undefined;
         return this.item.snippet.title;
     }
 }
