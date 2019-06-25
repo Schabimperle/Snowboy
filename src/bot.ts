@@ -1,9 +1,6 @@
 import * as Discord from "discord.js";
 import ffmpeg, { FfmpegCommand } from "fluent-ffmpeg";
 import * as fs from "fs";
-import { EventEmitter } from "events";
-// @ts-ignore
-import * as prism from "prism-media";
 // @ts-ignore
 import Models from "snowboy";
 
@@ -13,6 +10,7 @@ import * as Config from "./config.json";
 import { Player } from "./player";
 import { Song } from "./song";
 import { SpeechRecognizer } from "./speech-recognizer";
+import { PlaylistProvider, SpotifyPlaylistProvider } from "./playlistProvider";
 
 const COMMANDS: Command[] = [
     { command: "play", minWords: 1, maxWords: 20 },
@@ -31,16 +29,18 @@ export class Bot {
     private models: Models;
     private player: Player;
     private manuallyPaused: boolean = false;
+    private spotifyPP: SpotifyPlaylistProvider;
     private users: Map<Discord.Snowflake, {
         discordStream: Readable,
         ffmpegCommand: FfmpegCommand,
         recognizer: Writable,
     }> = new Map();
 
-    constructor(connection: Discord.VoiceConnection, models: Models, ytApiKey: string) {
+    constructor(connection: Discord.VoiceConnection) {
         this.connection = connection;
-        this.models = models;
-        this.player = new Player(connection, ytApiKey, true)
+        this.models = Config.snowboyModels;
+        this.spotifyPP = new SpotifyPlaylistProvider(Config.spotifyClientID, Config.spotifyClientSecret);
+        this.player = new Player(connection, Config.ytApiToken, true)
             .on("song", (song: Song) => {
                 // TODO communicate to user
             })
@@ -129,6 +129,14 @@ export class Bot {
                 case "play":
                     this.manuallyPaused = false;
                     this.player.clearPaused();
+                    this.extractSongs(text)
+                    .then((songs: string[]) => {
+                        for(let song of songs) {
+                            this.player.play(song);
+                        }
+                    }).catch((err: any) => {
+                        console.error(err);
+                    })
                     this.player.play(text);
                     break;
                 case "next result":
@@ -137,7 +145,14 @@ export class Bot {
                     this.player.playNextResult();
                     break;
                 case "add":
-                    this.player.add(text);
+                    this.extractSongs(text)
+                    .then((songs: string[]) => {
+                        for(let song of songs) {
+                            this.player.add(song);
+                        }
+                    }).catch((err: any) => {
+                        console.error(err);
+                    })
                     // playing a sound effect pauses the currently played music so we need to resume here
                     if (this.player.isPaused && !this.manuallyPaused) {
                         this.player.resume();
@@ -170,6 +185,27 @@ export class Bot {
                     }
             }
         });
+    }
+
+    /**
+     * 
+     * @param text 
+     * @returns Promise<string[]> A Promise returning a string array, containing author and title of the songs
+     */
+    public extractSongs(text: string) {
+        // example spotify links:
+        // spotify:playlist:2gaE8Y3U4aGTVrUCH1A5dQ
+        // https://open.spotify.com/playlist/2gaE8Y3U4aGTVrUCH1A5dQ?si=DgDs8jnYSM-C5axXZ76VOQ
+        text = text.trimLeft();
+        text = text.trimRight();
+        const playlistID = this.spotifyPP.extractPlaylistId(text);
+        if (playlistID) {
+            return this.spotifyPP.getPlaylist(playlistID);
+        } else {
+            return new Promise<String[]>((resolve, reject) => {
+                resolve([text]);
+            });
+        }
     }
 
     public playSoundEffect(path: string, cb?: () => void) {
@@ -231,10 +267,11 @@ export class Bot {
             return;
         }
 
-        // @ts-ignore
-        // user.discordStream.push(null);
+        // important! if not executed, ffmpeg streams wont end
+        user.discordStream.push(null);
+        // any sense executing destroy after push(null)?
         user.discordStream.destroy();
-        // user.ffmpegCommand.kill("9");
+
         this.users.delete(member.id);
         console.debug("stopped listening to", member.user.username);
     }

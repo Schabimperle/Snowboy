@@ -46,15 +46,14 @@ class Client extends Discord.Client {
                 const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
                 voiceChannel.join()
                     .then((connection) => {
-                        const bot = new Bot(
-                            connection,
-                            Config.snowboyModels,
-                            Config.ytApiToken);
+                        const bot = new Bot(connection);
                         this.bots.set(voiceChannel.guild.id, bot);
                         connection.on("disconnect", () => {
                             console.log("voiceConnection disconnect, removing oldBot from map");
                             this.bots.delete(voiceChannel.guild.id);
                         });
+
+                        // bot.extractSongs("spotify:playlist:2gaE8Y3U4aGTVrUCH1A5dQ");
                     }).catch(console.error);
             }
         }
@@ -106,7 +105,7 @@ class Client extends Discord.Client {
                                 return;
                             }
                              // create a new bot
-                            const newBot = new Bot(con, Config.snowboyModels, Config.ytApiToken);
+                            const newBot = new Bot(con);
                             this.bots.set(message.guild.id, newBot);
 
                             con.on("error", (err) => {

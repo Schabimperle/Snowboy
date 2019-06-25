@@ -126,6 +126,7 @@ export class Player extends EventEmitter {
     public clearPaused() {
         if (this.paused) {
             if (this.paused.song.stream) {
+                this.paused.song.stream.push(null);
                 this.paused.song.stream.destroy();
             }
             this.paused = null;
@@ -162,6 +163,7 @@ export class Player extends EventEmitter {
     public stop() {
         // finish currently played song
         if (this.lastPlayed && this.lastPlayed.stream) {
+            this.lastPlayed.stream.push(null);
             this.lastPlayed.stream.destroy();
         }
 
@@ -221,6 +223,7 @@ export class Player extends EventEmitter {
         }
 
         if (!calledByAutoplay) {
+            // clear autoplay history
             this.autoplayHistory.length = 0;
         }
         this.autoplayHistory.push(song.videoId);
