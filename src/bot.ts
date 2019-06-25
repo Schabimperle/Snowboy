@@ -51,6 +51,11 @@ export class Bot {
 
         // listen to current members of the channel
         for (const member of this.connection.channel.members.values()) {
+            // ignore bots
+            if (member.user.bot) {
+                return;
+            }
+
             this.listenTo(member);
         }
     }

@@ -174,13 +174,8 @@ class Client extends Discord.Client {
     }
 
     private onVoiceStateUpdate(oldState: Discord.VoiceState, newState: Discord.VoiceState) {
-        // ignore ourself (this bot)
-        if (newState.member && this.user && this.user.id === newState.member.user.id) {
-            return;
-        }
-
-        // check object to be not null
-        if (!newState.member) {
+        // ignore bots
+        if (!newState.member || newState.member.user.bot) {
             return;
         }
 
