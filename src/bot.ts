@@ -279,5 +279,9 @@ export class Bot {
 
         this.users.delete(member.id);
         console.debug("stopped listening to", member.user.username);
+
+        if (this.users.size == 0) {
+            this.disconnect();
+        }
     }
 }
