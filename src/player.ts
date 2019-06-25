@@ -316,6 +316,7 @@ export class Player extends EventEmitter {
             }
 
             const url = YT_VIDEO_URL + song.videoId;
+            console.debug("queueing", url, "search text:", song.searchText);
              // highwatermark defines buffersize for the video download (1<<20 = 1048576 Bytes = ~1MB)
             song.stream = ytdl(url, { quality: "highestaudio", highWaterMark: 1<<20 })
                 .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
