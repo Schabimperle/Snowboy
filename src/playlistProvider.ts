@@ -1,5 +1,5 @@
 // @ts-ignore
-import * as Spotify from 'node-spotify-api';
+import Spotify from 'node-spotify-api';
 
 export interface PlaylistProvider {
     extractPlaylistId: (s: string) => string | null;

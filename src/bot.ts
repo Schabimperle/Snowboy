@@ -73,6 +73,11 @@ export class Bot {
         } else if (oldState.member && oldState.channelID === this.connection.channel.id) {
             console.debug(oldState.member.user.username, "disconnected");
             this.stopListeningTo(oldState.member);
+
+            // leave channel if alone
+            if (this.users.size == 0) {
+                this.disconnect();
+            }
         }
     }
 
@@ -279,9 +284,5 @@ export class Bot {
 
         this.users.delete(member.id);
         console.debug("stopped listening to", member.user.username);
-
-        if (this.users.size == 0) {
-            this.disconnect();
-        }
     }
 }
