@@ -15,7 +15,7 @@ export class Player extends EventEmitter {
 
     private connection: Discord.VoiceConnection;
     private ytApiKey: string;
-    private queue: Song[] = [];
+    private queue: string[] = [];
     private lastPlayed?: Song;
     private paused: {
         song: Song,
@@ -80,24 +80,11 @@ export class Player extends EventEmitter {
 
     /**
      * adds a song to the queue
-     * @param search song to search and play from youtube
+     * @param searchText song to search and play from youtube
      */
-    public add(search: string) {
-        const opts = {
-            qs: {
-                key: this.ytApiKey,
-                part: "id,snippet",
-                q: search,
-                type: "video",
-            },
-            json: true
-        };
-        this.searchYT(opts)
-        .then(song => {
-            this.queue.push(song);
-            console.debug("queueing", song.url, "search text:", song.searchText);
-        })
-        .catch(err => console.error(err));
+    public add(searchText: string) {
+        this.queue.push(searchText);
+        console.debug("queueing", searchText);
     }
 
     /**
@@ -135,6 +122,10 @@ export class Player extends EventEmitter {
             if (this.paused.song.stream) {
                 this.paused.song.stream.push(null);
                 this.paused.song.stream.destroy();
+                this.paused.ffmpeg.push(null);
+                this.paused.ffmpeg.destroy()
+                this.paused.opus.push(null);
+                this.paused.opus.destroy();
             }
             this.paused = null;
         }
@@ -205,18 +196,36 @@ export class Player extends EventEmitter {
      */
     public playNext() {
         // get first item from queue
-        const song = this.queue.shift();
+        const searchText = this.queue.shift();
 
-        if (!song) {
+        // if queue was empty...
+        if (!searchText) {
             if (this.autoplay) {
+                // ...do autoplay
                 this.doAutoplay();
             } else {
+                // ...or finish playing and emit end event
                 this.emit("end");
             }
             return;
         }
-
-        this.playSong(song, false);
+        
+        // search youtube for queued text and play song if successful
+        const opts = {
+            qs: {
+                key: this.ytApiKey,
+                part: "id,snippet",
+                q: searchText,
+                type: "video",
+            },
+            json: true
+        };
+        this.searchYT(opts)
+            .then(song => this.playSong(song, false))
+            .catch(err => {
+                console.error(err)
+                this.playNext();
+            });
     }
 
     /**
@@ -286,9 +295,7 @@ export class Player extends EventEmitter {
      */
     private async searchYT(requestOpts: request.RequestPromiseOptions): Promise<Song> {
         const reqSong = new Song(requestOpts);
-
-        const result = await request(YT_API_URL, requestOpts);
-        reqSong.response = result;
+        reqSong.response = await request(YT_API_URL, requestOpts);
         return this.findNextValidYTResult(reqSong);
     }
 
