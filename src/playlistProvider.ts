@@ -43,19 +43,26 @@ export class SpotifyPlaylistProvider implements PlaylistProvider {
      * @param playlistId the playlist id to get the tracks from
      * @returns Promise<string[]> a Promise returning an array of strings, each containing author and title of the song
      */
-    public getPlaylist(playlistId: string) {
-        return this.spotifyApi.request(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`)
-                .then((data: any) => {
-                    let songs = [];
-                    for(const item of data.items) {
-                        let artistsString = '';
-                        for(const artist of item.track.artists) {
-                            artistsString += artist.name + ' ';
-                        }
-                        songs.push(artistsString + '- ' + item.track.name);
+    public getPlaylist(playlistId: string): Promise<string[]> {
+        return this.requestPlaylist(`https://api.spotify.com/v1/playlists/${playlistId}/tracks`);
+    }
+
+    private requestPlaylist(url: string, songs: string[] = []): Promise<string[]> {
+        return this.spotifyApi.request(url)
+            .then((data: any) => {
+                for (const item of data.items) {
+                    let artistsString = '';
+                    for (const artist of item.track.artists) {
+                        artistsString += artist.name + ' ';
                     }
-                    return songs;
-                });
+                    songs.push(artistsString + '- ' + item.track.name);
+                }
+
+                if (data.next) {
+                    return this.requestPlaylist(data.next, songs);
+                }
+                return songs;
+            });
     }
 }
 
