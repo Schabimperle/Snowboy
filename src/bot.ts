@@ -154,7 +154,7 @@ export class Bot {
                 case "next result":
                     this.manuallyPaused = false;
                     this.player.clearPaused();
-                    this.player.playNextResult();
+                    this.player.playNextSearchResult();
                     break;
                 case "add":
                     this.extractSongs(text)

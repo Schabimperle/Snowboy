@@ -71,7 +71,7 @@ export class Player extends EventEmitter {
             },
             json: true
         };
-        this.search(opts)
+        this.searchYT(opts)
         .then((song) => {
             this.playSong(song, false);
         })
@@ -92,7 +92,7 @@ export class Player extends EventEmitter {
             },
             json: true
         };
-        this.search(opts)
+        this.searchYT(opts)
         .then(song => {
             this.queue.push(song);
             console.debug("queueing", song.url, "search text:", song.searchText);
@@ -189,14 +189,14 @@ export class Player extends EventEmitter {
     /**
      * plays the next search result from the last search
      */
-    public playNextResult() {
+    public playNextSearchResult() {
         if (!this.lastPlayed) {
             return;
         }
 
-        this.findNextValidSong(this.lastPlayed)
-        .then(song => this.playSong(song, false))
-        .catch(err => console.error(err));
+        this.findNextValidYTResult(this.lastPlayed)
+            .then(song => this.playSong(song, false))
+            .catch(err => console.error(err));
     }
 
     /**
@@ -225,10 +225,6 @@ export class Player extends EventEmitter {
      * @param calledByAutoplay
      */
     private playSong(song: Song, calledByAutoplay: Boolean) {
-        if (!song.stream) {
-            return;
-        }
-
         if (!calledByAutoplay) {
             // clear autoplay history
             this.autoplayHistory.length = 0;
@@ -238,14 +234,14 @@ export class Player extends EventEmitter {
         song.url = YT_VIDEO_URL + song.videoId;
         // highwatermark defines buffersize for the video download (1<<20 = 1048576 Bytes = ~1MB)
         song.stream = ytdl(song.url, { quality: "highestaudio", highWaterMark: 1<<20 })
-        .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
-            song.info = info;
-        })
-        .on("end", () => console.log("ytdl stream end"))
-        .on("close", () => console.log("ytdl stream close"))
-        .on("error", (err) => console.error("ytdl stream error:", err));
+            .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
+                song.info = info;
+            })
+            .on("end", () => console.log("ytdl stream end"))
+            .on("close", () => console.log("ytdl stream close"))
+            .on("error", (err) => console.error("ytdl stream error:", err));
         
-        console.debug("playing", song.url, "search text:", song.searchText);
+        console.debug("playing", song.url, calledByAutoplay ? "autoplaying" : "search text:" + song.searchText);
 
         this.connection.play(song.stream, { volume: Config.volume })
             .on("finish", this.onPlayFinish)
@@ -277,9 +273,9 @@ export class Player extends EventEmitter {
             },
             json: true
         };
-        this.search(opts)
-        .then(song => this.playSong(song, true))
-        .catch(err => console.error(err));
+        this.searchYT(opts)
+            .then(song => this.playSong(song, true))
+            .catch(err => console.error(err));
     }
 
     /**
@@ -288,12 +284,12 @@ export class Player extends EventEmitter {
      * @param cb 
      * @retunrs Promise<Song> 
      */
-    private async search(requestOpts: request.RequestPromiseOptions): Promise<Song> {
+    private async searchYT(requestOpts: request.RequestPromiseOptions): Promise<Song> {
         const reqSong = new Song(requestOpts);
 
         const result = await request(YT_API_URL, requestOpts);
         reqSong.response = result;
-        return this.findNextValidSong(reqSong);
+        return this.findNextValidYTResult(reqSong);
     }
 
     /**
@@ -301,7 +297,7 @@ export class Player extends EventEmitter {
      * @param song 
      * @param cb 
      */
-    private findNextValidSong(song: Song): Promise<Song> {
+    private findNextValidYTResult(song: Song): Promise<Song> {
         return new Promise<Song>((resolve, reject) => {
             if (!song.response.items.length) {
                 const err = { message: "No search results", song };
@@ -322,13 +318,13 @@ export class Player extends EventEmitter {
                 // if the found song was already autoplayed, resume searching
                 if (this.autoplayHistory.find((apVideoId) => apVideoId == song.videoId)) {
                     console.debug(`skipping ${song.videoId} to prevent autplay loop`)
-                    return resolve(this.findNextValidSong(song));
+                    return resolve(this.findNextValidYTResult(song));
                 }
                 return resolve(song);
                 // ...check next page if we dint't
             } else if (song.response.nextPageToken) {
                 song.requestOpts.qs.pageToken = song.response.nextPageToken;
-                return resolve(this.search(song.requestOpts));
+                return resolve(this.searchYT(song.requestOpts));
                 // we can't find a valid index
             } else {
                 const err = { message: "No next page to search for valid videoId", song };
