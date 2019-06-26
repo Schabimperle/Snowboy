@@ -74,7 +74,8 @@ export class Player extends EventEmitter {
         this.search(opts)
         .then((song) => {
             this.playSong(song, false);
-        });
+        })
+        .catch(err => console.error(err));
     }
 
     /**
@@ -92,10 +93,11 @@ export class Player extends EventEmitter {
             json: true
         };
         this.search(opts)
-        .then((song) => {
+        .then(song => {
             this.queue.push(song);
             console.debug("queueing", song.url, "search text:", song.searchText);
-        });
+        })
+        .catch(err => console.error(err));
     }
 
     /**
@@ -193,9 +195,8 @@ export class Player extends EventEmitter {
         }
 
         this.findNextValidSong(this.lastPlayed)
-        .then((song) => {
-            this.playSong(song, false);
-        });
+        .then(song => this.playSong(song, false))
+        .catch(err => console.error(err));
     }
 
     /**
@@ -277,9 +278,8 @@ export class Player extends EventEmitter {
             json: true
         };
         this.search(opts)
-        .then((song) => {
-            this.playSong(song, true);
-        });
+        .then(song => this.playSong(song, true))
+        .catch(err => console.error(err));
     }
 
     /**
@@ -288,14 +288,12 @@ export class Player extends EventEmitter {
      * @param cb 
      * @retunrs Promise<Song> 
      */
-    private search(requestOpts: request.RequestPromiseOptions): Promise<Song> {
+    private async search(requestOpts: request.RequestPromiseOptions): Promise<Song> {
         const reqSong = new Song(requestOpts);
 
-        return request(YT_API_URL, requestOpts)
-        .then(result => {
-            reqSong.response = result;
-            return this.findNextValidSong(reqSong);
-        });
+        const result = await request(YT_API_URL, requestOpts);
+        reqSong.response = result;
+        return this.findNextValidSong(reqSong);
     }
 
     /**
