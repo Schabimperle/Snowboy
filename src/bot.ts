@@ -53,7 +53,7 @@ export class Bot {
         for (const member of this.connection.channel.members.values()) {
             // ignore bots
             if (member.user.bot) {
-                return;
+                continue;
             }
 
             this.listenTo(member);
@@ -104,7 +104,7 @@ export class Bot {
         if (this.player.isPlaying) {
             this.player.pause();
         }
-        this.playSoundEffect("sounds/failure-02.ogg", () => {
+        this.playSoundEffect("sounds/failure-02.ogg").then(() => {
             if (this.player.isPaused && !this.manuallyPaused) {
                 this.player.resume();
             }
@@ -134,7 +134,7 @@ export class Bot {
         if (this.player.isPlaying) {
             this.player.pause();
         }
-        this.playSoundEffect("sounds/success-01.ogg", () => {
+        this.playSoundEffect("sounds/success-01.ogg").then(() => {
             switch (command) {
                 case "play":
                     this.manuallyPaused = false;
@@ -220,15 +220,13 @@ export class Bot {
         }
     }
 
-    public playSoundEffect(path: string, cb?: () => void) {
-        console.log("playing sound file" + path);
-        this.connection.play(fs.createReadStream(path), { type: "ogg/opus", volume: Config.volume })
-            .on("finish", () => {
-                if (cb) {
-                    cb();
-                }
-            })
-            .on("error", (error) => console.log("dispatcher error:", path, error));
+    public playSoundEffect(path: string): Promise<void> {
+        return new Promise((resolve, reject) => {
+            console.log("playing sound file", path);
+            this.connection.play(fs.createReadStream(path), { type: "ogg/opus", volume: Config.volume })
+                .on("finish", () => resolve())
+                .on("error", error => reject({error, path}));
+        });
     }
 
     private listenTo(member: Discord.GuildMember) {
