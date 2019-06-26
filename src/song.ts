@@ -8,6 +8,7 @@ export class Song {
     public itemIndex: number = -1;
     public stream?: Readable;
     public info?: ytdl.videoInfo;
+    public url?: string;
 
     constructor(requestOpts: request.CoreOptions) {
         this.requestOpts = requestOpts;

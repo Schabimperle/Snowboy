@@ -1,7 +1,7 @@
 import { emit } from "cluster";
 import * as Discord from "discord.js";
 import { EventEmitter } from "events";
-import request from "request";
+import request from "request-promise-native";
 import { Readable } from "stream";
 import ytdl from "ytdl-core";
 
@@ -69,8 +69,10 @@ export class Player extends EventEmitter {
                 q: search,
                 type: "video",
             },
+            json: true
         };
-        this.search(opts, (song) => {
+        this.search(opts)
+        .then((song) => {
             this.playSong(song, false);
         });
     }
@@ -87,9 +89,12 @@ export class Player extends EventEmitter {
                 q: search,
                 type: "video",
             },
+            json: true
         };
-        this.search(opts, (song) => {
+        this.search(opts)
+        .then((song) => {
             this.queue.push(song);
+            console.debug("queueing", song.url, "search text:", song.searchText);
         });
     }
 
@@ -187,7 +192,8 @@ export class Player extends EventEmitter {
             return;
         }
 
-        this.findNextValidSong(this.lastPlayed, (song) => {
+        this.findNextValidSong(this.lastPlayed)
+        .then((song) => {
             this.playSong(song, false);
         });
     }
@@ -228,6 +234,18 @@ export class Player extends EventEmitter {
         }
         this.autoplayHistory.push(song.videoId);
 
+        song.url = YT_VIDEO_URL + song.videoId;
+        // highwatermark defines buffersize for the video download (1<<20 = 1048576 Bytes = ~1MB)
+        song.stream = ytdl(song.url, { quality: "highestaudio", highWaterMark: 1<<20 })
+        .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
+            song.info = info;
+        })
+        .on("end", () => console.log("ytdl stream end"))
+        .on("close", () => console.log("ytdl stream close"))
+        .on("error", (err) => console.error("ytdl stream error:", err));
+        
+        console.debug("playing", song.url, "search text:", song.searchText);
+
         this.connection.play(song.stream, { volume: Config.volume })
             .on("finish", this.onPlayFinish)
             .on("close", () => console.log("dispatcher closed", song.videoId))
@@ -256,8 +274,10 @@ export class Player extends EventEmitter {
                 relatedToVideoId: this.lastPlayed.videoId,
                 type: "video",
             },
+            json: true
         };
-        this.search(opts, (song) => {
+        this.search(opts)
+        .then((song) => {
             this.playSong(song, true);
         });
     }
@@ -266,25 +286,16 @@ export class Player extends EventEmitter {
      * Does various youtube api calls depending on the given requestOpts
      * @param requestOpts 
      * @param cb 
+     * @retunrs Promise<Song> 
      */
-    private search(requestOpts: request.CoreOptions, cb: (song: Song) => void) {
+    private search(requestOpts: request.RequestPromiseOptions): Promise<Song> {
         const reqSong = new Song(requestOpts);
 
-        request(YT_API_URL, requestOpts,
-            (error, response, body) => {
-                // error check
-                if (error || response.statusCode !== 200) {
-                    const err = error || "Bad status code:" + response.statusCode;
-                    console.error(err);
-                    throw err;
-                }
-
-                reqSong.response = JSON.parse(body);
-                this.findNextValidSong(reqSong, (song) => {
-                    cb(song);
-                });
-            },
-        );
+        return request(YT_API_URL, requestOpts)
+        .then(result => {
+            reqSong.response = result;
+            return this.findNextValidSong(reqSong);
+        });
     }
 
     /**
@@ -292,47 +303,41 @@ export class Player extends EventEmitter {
      * @param song 
      * @param cb 
      */
-    private findNextValidSong(song: Song, cb: (song: Song) => void) {
-        if (!song.response.items.length) {
-            this.emit("error", { message: "No search results", song });
-            return;
-        }
-
-        const startIndex = song.itemIndex;
-        for (let i = song.itemIndex + 1; i < song.response.items.length; i++) {
-            if (song.response.items[i].id.videoId) {
-                song.itemIndex = i;
-                break;
+    private findNextValidSong(song: Song): Promise<Song> {
+        return new Promise<Song>((resolve, reject) => {
+            if (!song.response.items.length) {
+                const err = { message: "No search results", song };
+                this.emit("error", err);
+                return reject(err);
             }
-        }
-        
-        // did we find a valid index?
-        if (song.itemIndex !== startIndex) {
-            // if the found song was already autoplayed, resume searching
-            if (this.autoplayHistory.find((apVideoId) => apVideoId == song.videoId)) {
-                console.debug(`skipping ${song.videoId} to prevent autplay loop`)
-                this.findNextValidSong(song, cb);
-                return;
+    
+            const startIndex = song.itemIndex;
+            for (let i = song.itemIndex + 1; i < song.response.items.length; i++) {
+                if (song.response.items[i].id.videoId) {
+                    song.itemIndex = i;
+                    break;
+                }
+            }
+            
+            // did we find a valid index?
+            if (song.itemIndex !== startIndex) {
+                // if the found song was already autoplayed, resume searching
+                if (this.autoplayHistory.find((apVideoId) => apVideoId == song.videoId)) {
+                    console.debug(`skipping ${song.videoId} to prevent autplay loop`)
+                    return resolve(this.findNextValidSong(song));
+                }
+                return resolve(song);
+                // ...check next page if we dint't
+            } else if (song.response.nextPageToken) {
+                song.requestOpts.qs.pageToken = song.response.nextPageToken;
+                return resolve(this.search(song.requestOpts));
+                // we can't find a valid index
+            } else {
+                const err = { message: "No next page to search for valid videoId", song };
+                emit("error", err);
+                return reject(err)
             }
 
-            const url = YT_VIDEO_URL + song.videoId;
-            console.debug("queueing", url, "search text:", song.searchText);
-             // highwatermark defines buffersize for the video download (1<<20 = 1048576 Bytes = ~1MB)
-            song.stream = ytdl(url, { quality: "highestaudio", highWaterMark: 1<<20 })
-                .on("info", (info: ytdl.videoInfo, format: ytdl.videoFormat) => {
-                    song.info = info;
-                })
-                .on("end", () => console.log("ytdl stream end"))
-                .on("close", () => console.log("ytdl stream close"))
-                .on("error", (err) => console.error("ytdl stream error:", err));
-            cb(song);
-            // ...check next page if we dint't
-        } else if (song.response.nextPageToken) {
-            song.requestOpts.qs.pageToken = song.response.nextPageToken;
-            this.search(song.requestOpts, cb);
-            // we can't find a valid index
-        } else {
-            emit("error", { message: "No next page to search for valid videoId", song });
-        }
+        })
     }
 }
