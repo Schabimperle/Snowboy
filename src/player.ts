@@ -122,6 +122,7 @@ export class Player extends EventEmitter {
             if (this.paused.song.stream) {
                 this.paused.song.stream.push(null);
                 this.paused.song.stream.destroy();
+                this.paused.ffmpeg.removeAllListeners();
                 this.paused.ffmpeg.push(null);
                 this.paused.ffmpeg.destroy()
                 this.paused.opus.push(null);
