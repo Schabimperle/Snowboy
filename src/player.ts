@@ -336,6 +336,6 @@ export class Player extends EventEmitter {
                 return reject(err)
             }
 
-        })
+        });
     }
 }

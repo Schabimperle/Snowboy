@@ -140,7 +140,7 @@ export class Bot {
                     this.manuallyPaused = false;
                     this.player.clearPaused();
                     this.extractSongs(text)
-                    .then((songs: string[]) => {
+                    .then(songs => {
                         // play the first song
                         this.player.play(songs.shift() || '');
                         // add the rest to the playlist
@@ -158,7 +158,7 @@ export class Bot {
                     break;
                 case "add":
                     this.extractSongs(text)
-                    .then((songs: string[]) => {
+                    .then(songs => {
                         for (let song of songs) {
                             this.player.add(song);
                         }
@@ -214,7 +214,7 @@ export class Bot {
         if (playlistID) {
             return this.spotifyPP.getPlaylist(playlistID);
         } else {
-            return new Promise<String[]>((resolve, reject) => {
+            return new Promise<string[]>((resolve, reject) => {
                 resolve([text]);
             });
         }
