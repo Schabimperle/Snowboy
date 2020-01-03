@@ -6,7 +6,6 @@
   "types": "lib/index",
   "scripts": {
     "start": "npm run build && node lib/index.js",
-    "preinstall": "npm run setup:ubuntu",
     "build": "tsc",
     "clean": "npm run service:uninstall && rm -rf lib",
     "production": "npm run clean && npm install --no-save && npm run build && npm run service:install",
@@ -15,9 +14,7 @@
     "service:start": "./service.sh start",
     "service:stop": "./service.sh stop",
     "service:restart": "npm run build && ./service.sh restart",
-    "service:log": "./service.sh log",
-    "setup:ubuntu": "apt-get install -y build-essential python autoconf libtool libatlas-base-dev liblapack-dev libblas-dev ffmpeg",
-    "setup:fedora": "dnf install -y make automake gcc gcc-c++ kernel-devel python autoconf libtool atlas-devel openblas ffmpeg sox && ln -s /usr/lib64/atlas/libsatlas.so /usr/lib/libcblas.so && ln -s /usr/lib64/atlas/libsatlas.so.3 /usr/lib/libcblas.so.3"
+    "service:log": "./service.sh log"
   },
   "keywords": [],
   "author": "",

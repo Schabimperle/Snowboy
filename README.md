@@ -23,6 +23,8 @@ Pushes to the master branch will automatically update and restart the main snowb
 ### Prequisites
 - node version v10.16.0
 - repository access rights
+- Ubuntu: `sudo apt-get install -y build-essential python autoconf libtool libatlas-base-dev liblapack-dev libblas-dev ffmpeg`
+- Fedora: `sudo dnf install -y make automake gcc gcc-c++ kernel-devel python autoconf libtool atlas-devel openblas ffmpeg sox && ln -s /usr/lib64/atlas/libsatlas.so /usr/lib/libcblas.so && ln -s /usr/lib64/atlas/libsatlas.so.3 /usr/lib/libcblas.so.3`
 
 ### Setup environment
 - clone repository: `git clone git@github.com:Schabimperle/Snowboy.git`
