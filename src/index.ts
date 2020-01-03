@@ -59,67 +59,41 @@ class Client extends Discord.Client {
         }
     }
 
-    private onMessage(message: Discord.Message) {
+    private async onMessage(message: Discord.Message) {
         // Voice only works in guilds, if the message does not come from a guild, we ignore it
         if (!message.guild || !message.member) { return; }
 
         // message intended for us?
-        if (!message.content.startsWith(Config.prefix)) {
+        const match = message.content.match(new RegExp(`${Config.prefix}([^ ]*)`));
+        if (!match) {
             return;
         }
 
-        const oldBot: Bot | undefined = this.bots.get(message.guild.id);
-        const command: string = message.content.slice(Config.prefix.length);
-        
+        let bot = this.bots.get(message.guild.id);
+        const member = message.member;
+        const command = match[1];
+       
         switch (command) {
             case "join":
-                // Only try to join the sender's voice channel if they are in one themselves
-                if (!message.member.voice.channel) {
-                    message.reply("You need to join a voice channel first!");
-                    return;
-                }
-
                 // Are we connected already?
-                if (oldBot && oldBot.connection.channel.id === message.member.voice.channelID) {
-                    console.debug("we are already connected to", oldBot.connection.channel.name);
+                if (bot && bot.connection.channel.id === message.member.voice.channelID) {
+                    console.debug("we are already connected to", bot.connection.channel.name);
                     return;
                 }
 
                 // cleanup existing connection
-                if (oldBot) {
-                    console.debug("cleaning up existing connection to", oldBot.connection.channel.name);
-                    oldBot.disconnect();
+                if (bot) {
+                    console.debug("cleaning up existing connection to", bot.connection.channel.name);
+                    bot.disconnect();
                 }
 
-                // setup new connection
-                const voiceChannel = message.member.voice.channel;
-                voiceChannel.join()
-                    .then((con: Discord.VoiceConnection) => {
-
-                        // for a description see comment above class SomeSilence
-                        // @ts-ignore
-                        const dispatcher = con.play(new SomeSilence(), { type: 'opus' });
-                        dispatcher.on('finish', () => {
-
-                            if (!message.guild) {
-                                return;
-                            }
-                             // create a new bot
-                            const newBot = new Bot(con);
-                            this.bots.set(message.guild.id, newBot);
-
-                            con.on("error", (err) => {
-                                console.error(err);
-                            });
-                            con.on("disconnect", () => {
-                                if (!message.guild) {
-                                    return;
-                                }
-                                console.log("voiceConnection disconnect, removing oldBot from map");
-                                this.bots.delete(message.guild.id);
-                            });
-                        });
-                    }).catch(console.error);
+                this.createBot(message);
+                break;
+            case "play":
+                if (!bot) {
+                    bot = await this.createBot(message)
+                }
+                bot.onTextCommand(member, message.content.slice(Config.prefix.length));
                 break;
             case "help":
                 message.reply(new Discord.MessageEmbed()
@@ -164,13 +138,56 @@ class Client extends Discord.Client {
                 }
 
                 // watch reply for a description
-                if (!oldBot || oldBot.connection.channel.id !== message.member.voice.channelID) {
-                    message.reply(`You need to be in the same channel as me before yelling commands. Type "${Config.prefix}join" to call me to enter your channel`);
+                if (!bot || bot.connection.channel.id !== message.member.voice.channelID) {
+                    message.reply(`You need to be in the same channel as me to send commands. Type "${Config.prefix}join" to call me to enter your channel`);
                     return;
                 }
 
-                oldBot.onTextCommand(message.member, command);
+                bot.onTextCommand(message.member, command);
         }
+    }
+
+    private async createBot(message : Discord.Message) {
+        // Voice only works in guilds, if the message does not come from a guild, we ignore it
+        if (!message.guild || !message.member) {
+            return Promise.reject("Voice only works in guilds, if the message does not come from a guild, we ignore it.");
+        }
+        
+        // Only try to join the sender's voice channel if they are in one themselves
+        if (!message.member.voice.channel) {
+            message.reply("You need to join a voice channel first!");
+            return Promise.reject("Sending message member is not in a voice channel.");
+        }
+
+        // setup new connection
+        const voiceChannel = message.member.voice.channel;
+        const guild = message.guild
+        const con = await voiceChannel.join();
+
+        await this.soundBugWorkaround(con);
+
+        // create a new bot
+        const newBot = new Bot(con);
+        this.bots.set(guild.id, newBot);
+        con.on("error", (err) => {
+            console.error(err);
+        });
+        con.on("disconnect", () => {
+            console.log("voiceConnection disconnect, removing bot from map");
+            this.bots.delete(guild.id);
+        });
+        return newBot;
+    }
+
+    private soundBugWorkaround(con : Discord.VoiceConnection) {
+        // for a description see comment above class SomeSilence
+        // @ts-ignore
+        const dispatcher = con.play(new SomeSilence(), { type: 'opus' });
+        return new Promise(resolve => {
+            dispatcher.on('finish', () => {
+                resolve();
+            });
+        });
     }
 
     private onVoiceStateUpdate(oldState: Discord.VoiceState, newState: Discord.VoiceState) {
