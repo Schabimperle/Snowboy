@@ -214,9 +214,7 @@ export class Bot {
         if (playlistID) {
             return this.spotifyPP.getPlaylist(playlistID);
         } else {
-            return new Promise<string[]>((resolve, reject) => {
-                resolve([text]);
-            });
+            return Promise.resolve([text]);
         }
     }
 
