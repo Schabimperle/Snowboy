@@ -1,0 +1,16 @@
+{
+    "ytApiToken": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "discordToken": "XXXXXXXXXXXXXXXXXXXXXXXX.XXXXXX.XXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "spotifyClientID": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "spotifyClientSecret": "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "prefix": "!",
+    "snowboyModels": [
+        {
+            "file": "snowboy.umdl",
+            "sensitivity": "0.5",
+            "hotwords": "snowboy"
+        }
+    ],
+    "testChannelId": "XXXXXXXXXXXXXXXXXX",
+    "volume": 0.2
+}
