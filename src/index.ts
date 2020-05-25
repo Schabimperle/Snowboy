@@ -61,10 +61,17 @@ class Client extends Discord.Client {
 
     private async onMessage(message: Discord.Message) {
         // Voice only works in guilds, if the message does not come from a guild, we ignore it
-        if (!message.guild || !message.member) { return; }
+        if (!message.guild || !message.member) {
+            return;
+        }
+
+        // Ignore messages from bots
+        if (message.member.user?.bot) {
+            return;
+        }
 
         // message intended for us?
-        const match = message.content.match(new RegExp(`${Config.prefix}([^ ]*)`));
+        const match = message.content.match(new RegExp(`^${Config.prefix}([^ ]*)`));
         if (!match) {
             return;
         }
@@ -133,13 +140,13 @@ class Client extends Discord.Client {
             default:
                 // sender in a voice channel?
                 if (!message.member.voice.channel) {
-                    message.reply(`You need to join a voice channel first, then type "${Config.prefix}join" to call me to join your channel`);
+                    message.reply(`You need to join a voice channel first, then type "${Config.prefix}join" to call me to join your channel.`);
                     return;
                 }
 
                 // watch reply for a description
                 if (!bot || bot.connection.channel.id !== message.member.voice.channelID) {
-                    message.reply(`You need to be in the same channel as me to send commands. Type "${Config.prefix}join" to call me to enter your channel`);
+                    message.reply(`You need to be in the same channel as me to send commands. Type "${Config.prefix}join" to call me to enter your channel.`);
                     return;
                 }
 
