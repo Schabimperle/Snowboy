@@ -41,7 +41,7 @@ class Client extends Discord.Client {
 
         // debug
         if (Config.testChannelId) {
-            const channel = this.channels.get(Config.testChannelId);
+            const channel = this.channels.resolve(Config.testChannelId);
             if (channel && channel.type === "voice") {
                 const voiceChannel: Discord.VoiceChannel = channel as Discord.VoiceChannel;
                 voiceChannel.join()
@@ -103,39 +103,38 @@ class Client extends Discord.Client {
                 bot.onTextCommand(member, message.content.slice(Config.prefix.length));
                 break;
             case "help":
-                message.reply(new Discord.MessageEmbed()
-                    .setColor('#000000')
-                    .setTitle('Some title')
-                    .setURL('https://discord.js.org/')
-                    .setAuthor('Some name', 'https://i.imgur.com/wSTFkRM.png', 'https://discord.js.org')
-                    .setDescription('Some description here')
-                    .setThumbnail('https://i.imgur.com/wSTFkRM.png')
-                    .addField('Regular field title', 'Some value here')
-                    .addBlankField()
-                    .addField('Inline field title', 'Some value here', true)
-                    .addField('Inline field title', 'Some value here', true)
-                    .addField('Inline field title', 'Some value here', true)
-                    .setImage('https://i.imgur.com/wSTFkRM.png')
-                    .setTimestamp()
-                    .setFooter('Some footer text here', 'https://i.imgur.com/wSTFkRM.png')
-                );
-                // message.reply(
-                //     `\n` +
-                //     `Available text commands:\n` +
-                //     `\t${Config.prefix}join\t join your channel\n` +
-                //     `\t${Config.prefix}leave\t leave your channel\n` +
-                //     `\t${Config.prefix}help\t answer with this help message\n` +
-                //     `\n` +
-                //     `In your channel, i will listen for the voice command "${Config.snowboyModels[0].hotwords}"\n` +
-                //     `After triggering the the hotword, i will listen for the following voice commands:\n` +
-                //     `\tplay ...\t plays the requested song, e.g. "snowboy, play eminem"\n` +
-                //     `\tnext result\t skips currently played song and plays next search result for your request\n` +
-                //     `\tadd ...\t adds a song to your playlist\n` +
-                //     `\tpause\t pauses the currently played song\n` +
-                //     `\tresume\t resumes a paused song\n` +
-                //     `\tskip\t skips the currently played song\n` +
-                //     `\tstop\t stops playing and clears your playlist\n` +
-                //     `\tleave\t - leave your channel\n`);
+                // message.reply(new Discord.MessageEmbed()
+                //     .setColor('#000000')
+                //     .setTitle('Some title')
+                //     .setURL('https://discord.js.org/')
+                //     .setAuthor('Some name', 'https://i.imgur.com/wSTFkRM.png', 'https://discord.js.org')
+                //     .setDescription('Some description here')
+                //     .setThumbnail('https://i.imgur.com/wSTFkRM.png')
+                //     .addField('Regular field title', 'Some value here')
+                //     .addField('Inline field title', 'Some value here', true)
+                //     .addField('Inline field title', 'Some value here', true)
+                //     .addField('Inline field title', 'Some value here', true)
+                //     .setImage('https://i.imgur.com/wSTFkRM.png')
+                //     .setTimestamp()
+                //     .setFooter('Some footer text here', 'https://i.imgur.com/wSTFkRM.png')
+                // );
+                message.reply(
+                    `\n` +
+                    `Available text commands:\n` +
+                    `\t${Config.prefix}join\t join your channel\n` +
+                    `\t${Config.prefix}leave\t leave your channel\n` +
+                    `\t${Config.prefix}help\t answer with this help message\n` +
+                    `\n` +
+                    `I am like any other voice assistant, just with the trigger word "${Config.snowboyModels[0].hotwords}"\n` +
+                    `and a little less functionality:\n` +
+                    `\tplay ...     play the requested song, e.g. "snowboy, play barbie girl"\n` +
+                    `\tnext result  skip current song and play next result\n` +
+                    `\tadd ...      add a song to the playlist\n` +
+                    `\tpause        pause the current song\n` +
+                    `\tresume       resume a paused song\n` +
+                    `\tskip         skip the current song\n` +
+                    `\tstop         stop playing and clear the playlist\n` +
+                    `\tleave        snowboy leaves your channel\n`);
                 break;
             default:
                 // sender in a voice channel?
